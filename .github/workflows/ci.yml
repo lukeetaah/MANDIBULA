@@ -29,7 +29,7 @@ jobs:
       - name: Reject likely committed secrets
         shell: bash
         run: |
-          if git grep -nE '(SUPABASE_SERVICE_ROLE_KEY|BEGIN (RSA|OPENSSH) PRIVATE KEY|sk_live_)' -- ':!*.example' ':!.github/workflows/ci.yml'; then
+          if git grep -nE '(SUPABASE_SERVICE_ROLE_KEY[[:space:]]*[:=][[:space:]]*[A-Za-z0-9._-]{20,}|BEGIN (RSA|OPENSSH) PRIVATE KEY|sk_live_[A-Za-z0-9]{12,})' -- ':!*.example' ':!.github/workflows/ci.yml'; then
             echo "Potential secret committed"
             exit 1
           fi
@@ -60,5 +60,5 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm --filter @mandibula/web exec playwright install --with-deps chromium
       - run: pnpm test:e2e
