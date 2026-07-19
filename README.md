@@ -1,6 +1,6 @@
 # MANDÍBULA: PATAGONIA
 
-Vertical slice jugable de una simulación 3D sistémica a escala de insecto. La partida local pone al jugador en una sucesión de obreras de _Acromyrmex lobicornis_: recolectar sustrato, sostener el cultivo, leer y emitir señales químicas, sobrevivir a depredadores y superar a una colonia bot.
+Vertical slice jugable de estrategia ecológica 3D a escala de insecto. El jugador dirige patrullas de _Acromyrmex lobicornis_ con selección y órdenes contextuales: recolectar sustrato, sostener el cultivo, construir memoria química, sobrevivir a depredadores y superar a una colonia bot.
 
 ## Estado real
 
@@ -42,15 +42,15 @@ Copiar `.env.example` a `.env.local` y completar sólo las claves públicas indi
 
 ## Controles
 
-- WASD: mover.
-- Mouse: orientar cámara (tras hacer clic en el juego).
-- Shift: acelerar consumiendo energía.
-- E: sujetar o entregar recurso.
-- Q: emitir la señal seleccionada.
-- F: cambiar tipo de señal desbloqueado.
-- Tab: lectura táctica orgánica.
-- Rueda: cambiar radio.
-- Clic derecho: cancelar señales propias cercanas.
+- Clic o caja de arrastre: seleccionar obreras.
+- Clic derecho en terreno: mover la patrulla.
+- Clic derecho en recurso: asignar un circuito de cosecha y retorno.
+- WASD, flechas o bordes: desplazar la cámara.
+- Rueda: zoom; botón central: rotar.
+- Q: emitir la señal seleccionada desde la patrulla.
+- R: ordenar regreso al nido.
+- Tab: alternar lectura química.
+- Inicio: volver al nido.
 - Esc: pausa completa en el modo local.
 
 ## Estructura

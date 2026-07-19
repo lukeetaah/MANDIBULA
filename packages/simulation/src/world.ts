@@ -68,6 +68,8 @@ function makeAgent(
     carrying: 0,
     task: "idle",
     targetId: null,
+    order: "autonomous",
+    destination: null,
     age: 0,
     alive: true,
     controlled,
@@ -334,7 +336,26 @@ function handleInteraction(world: WorldState, agent: Agent) {
       agent.id,
     );
     agent.carrying = 0;
-    if (agent.controlled) world.tutorialStep = Math.max(world.tutorialStep, 3);
+    if (agent.faction === "acromyrmex")
+      world.tutorialStep = Math.max(world.tutorialStep, 4);
+    if (agent.order === "gather" && agent.targetId !== null) {
+      const orderedPatch = world.resources.find(
+        (candidate) => candidate.id === agent.targetId && candidate.amount > 0,
+      );
+      if (orderedPatch) {
+        agent.task = "forage";
+        agent.destination = { ...orderedPatch.position };
+      } else {
+        agent.order = "autonomous";
+        agent.destination = null;
+        agent.targetId = null;
+      }
+    } else {
+      agent.order = "autonomous";
+      agent.destination = null;
+      agent.targetId = null;
+      agent.task = "idle";
+    }
     return;
   }
   const resource = world.resources
@@ -352,7 +373,7 @@ function handleInteraction(world: WorldState, agent: Agent) {
     resource.amount -= 1;
     agent.carrying = 1;
     agent.task = "return";
-    if (agent.controlled) world.tutorialStep = Math.max(world.tutorialStep, 2);
+    agent.destination = { ...NEST };
   }
 }
 
@@ -380,14 +401,26 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
       const speed = (sprint ? 0.42 : 0.25) * thermal;
       agent.velocity = { x: direction.x * speed, z: direction.z * speed };
       agent.energy = clamp(agent.energy + (sprint ? -0.006 : 0.002), 0, 1);
-      world.tutorialStep = Math.max(world.tutorialStep, 1);
+      world.tutorialStep = Math.max(world.tutorialStep, 2);
     } else if (
       command.type === "INTERACT" ||
       command.type === "PICK_UP" ||
-      command.type === "DROP" ||
-      command.type === "HARVEST"
+      command.type === "DROP"
     ) {
       handleInteraction(world, agent);
+    } else if (command.type === "HARVEST" && "targetId" in command.payload) {
+      const targetId = command.payload.targetId;
+      const resource = world.resources.find(
+        (candidate) => candidate.id === targetId && candidate.amount > 0,
+      );
+      if (resource) {
+        agent.order = "gather";
+        agent.task = agent.carrying > 0 ? "return" : "forage";
+        agent.targetId = resource.id;
+        agent.destination =
+          agent.carrying > 0 ? { ...NEST } : { ...resource.position };
+        world.tutorialStep = Math.max(world.tutorialStep, 3);
+      }
     } else if (
       command.type === "EMIT_PHEROMONE" &&
       "position" in command.payload
@@ -412,7 +445,7 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
         command.payload.radius ?? 5,
         command.payload.intensity ?? 0.65,
       );
-      world.tutorialStep = Math.max(world.tutorialStep, 4);
+      if (world.tutorialStep >= 4) world.tutorialStep = 5;
     } else if (
       command.type === "CANCEL_SIGNAL" &&
       "position" in command.payload
@@ -424,10 +457,22 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
           distanceSq(field.position, position) > 64,
       );
     } else if (
+      command.type === "ASSIGN_PRIORITY" &&
+      "position" in command.payload
+    ) {
+      agent.order = "move";
+      agent.task = "move";
+      agent.targetId = null;
+      agent.destination = { ...command.payload.position };
+      world.tutorialStep = Math.max(world.tutorialStep, 2);
+    } else if (
       command.type === "RETREAT" ||
       command.type === "RETURN_TO_NEST"
     ) {
+      agent.order = "return";
       agent.task = "return";
+      agent.targetId = null;
+      agent.destination = { ...NEST };
     } else if (command.type === "ATTACK" && "targetId" in command.payload) {
       const targetId = command.payload.targetId;
       const spider = world.spiders.find(
@@ -476,16 +521,6 @@ function steer(agent: Agent, target: Vec2, speed: number) {
   agent.velocity.z = direction.z * speed;
 }
 
-function updatePlayer(world: WorldState) {
-  const player = world.agents.find((agent) => agent.id === world.playerAgentId);
-  if (!player?.alive) return;
-  player.position.x = clamp(player.position.x + player.velocity.x, -58, 58);
-  player.position.z = clamp(player.position.z + player.velocity.z, -48, 48);
-  player.velocity.x *= 0.78;
-  player.velocity.z *= 0.78;
-  player.energy = clamp(player.energy + 0.0015, 0, 1);
-}
-
 function bestPheromone(
   world: WorldState,
   agent: Agent,
@@ -504,9 +539,19 @@ function bestPheromone(
 }
 
 function updateAnt(agent: Agent, world: WorldState) {
-  if (agent.controlled || !agent.alive) return;
+  if (!agent.alive) return;
   const speed =
     world.temperature < 7 ? 0.07 : world.temperature > 31 ? 0.1 : 0.14;
+  if (
+    agent.faction === "rival" &&
+    (world.tick < 900 || agent.id % 7 !== 0) &&
+    agent.carrying === 0
+  ) {
+    agent.velocity.x *= 0.65;
+    agent.velocity.z *= 0.65;
+    agent.task = "idle";
+    return;
+  }
   const nearbySpider = world.spiders
     .filter(
       (spider) =>
@@ -548,6 +593,34 @@ function updateAnt(agent: Agent, world: WorldState) {
     };
     steer(agent, away, speed * 1.25);
     agent.task = "flee";
+  } else if (agent.order !== "autonomous" && agent.destination) {
+    if (
+      agent.order === "gather" &&
+      agent.targetId !== null &&
+      agent.carrying === 0
+    ) {
+      const patch = world.resources.find(
+        (candidate) => candidate.id === agent.targetId && candidate.amount > 0,
+      );
+      if (patch) agent.destination = { ...patch.position };
+      else {
+        agent.order = "autonomous";
+        agent.destination = null;
+        agent.targetId = null;
+      }
+    }
+    if (agent.destination) {
+      steer(agent, agent.destination, speed * 1.12);
+      const arrived = distanceSq(agent.position, agent.destination) < 1.6;
+      if (arrived && agent.order === "gather") handleInteraction(world, agent);
+      else if (arrived && agent.order === "return")
+        handleInteraction(world, agent);
+      else if (arrived && agent.order === "move") {
+        agent.order = "autonomous";
+        agent.destination = null;
+        agent.task = "idle";
+      }
+    }
   } else if (agent.carrying > 0 || agent.task === "return") {
     steer(agent, agent.faction === "rival" ? RIVAL_NEST : NEST, speed);
     if (
@@ -568,16 +641,34 @@ function updateAnt(agent: Agent, world: WorldState) {
       agent.faction === "acromyrmex"
         ? bestPheromone(world, agent, ["forage", "recruit"])
         : undefined;
-    const resource = signal
-      ? { position: signal.position }
-      : nearestResource(world, agent);
-    if (resource) steer(agent, resource.position, speed);
-    if (resource && distanceSq(agent.position, resource.position) < 8)
-      handleInteraction(world, agent);
-    agent.task = "forage";
+    if (agent.faction === "acromyrmex" && !signal) {
+      const angle = agent.id * 2.399963;
+      const radius = 2.2 + (agent.id % 8) * 0.33;
+      const restingPlace = {
+        x: Math.cos(angle) * radius,
+        z: Math.sin(angle) * radius,
+      };
+      if (distanceSq(agent.position, restingPlace) > 0.8)
+        steer(agent, restingPlace, speed * 0.42);
+      else {
+        agent.velocity.x *= 0.55;
+        agent.velocity.z *= 0.55;
+      }
+      agent.task = "idle";
+    } else {
+      const resource = signal
+        ? { position: signal.position }
+        : nearestResource(world, agent);
+      if (resource) steer(agent, resource.position, speed);
+      if (resource && distanceSq(agent.position, resource.position) < 8)
+        handleInteraction(world, agent);
+      agent.task = "forage";
+    }
   }
   agent.position.x += agent.velocity.x;
   agent.position.z += agent.velocity.z;
+  agent.position.x = clamp(agent.position.x, -58, 58);
+  agent.position.z = clamp(agent.position.z, -48, 48);
   agent.energy = clamp(agent.energy - 0.00025, 0.25, 1);
 }
 
@@ -991,7 +1082,6 @@ export function stepWorld(
   applyCommands(world, commands);
   updateClimate(world);
   updatePheromones(world);
-  updatePlayer(world);
   for (const agent of world.agents) {
     agent.age += 1;
     if (agent.kind === "ant") updateAnt(agent, world);

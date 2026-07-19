@@ -23,7 +23,10 @@ export const commandSchema = z.discriminatedUnion("type", [
   base.extend({ type: z.literal("PICK_UP"), payload: z.object({}) }),
   base.extend({ type: z.literal("DROP"), payload: z.object({}) }),
   base.extend({ type: z.literal("CUT"), payload: z.object({}) }),
-  base.extend({ type: z.literal("HARVEST"), payload: z.object({}) }),
+  base.extend({
+    type: z.literal("HARVEST"),
+    payload: z.object({ targetId: z.number().int().nonnegative() }),
+  }),
   base.extend({
     type: z.literal("DIG"),
     payload: z.object({ position: vec2 }),

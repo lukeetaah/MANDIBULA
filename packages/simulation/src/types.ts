@@ -7,7 +7,8 @@ export type FactionId =
 export type AgentKind =
   "ant" | "wasp" | "bumblebee" | "termite" | "fly" | "beetle";
 export type AgentTask =
-  "idle" | "forage" | "return" | "flee" | "defend" | "sealed";
+  "idle" | "move" | "forage" | "return" | "flee" | "defend" | "sealed";
+export type AgentOrder = "autonomous" | "move" | "gather" | "return";
 export type PheromoneType = "forage" | "alarm" | "home" | "avoid" | "recruit";
 export type SpiderGuild = "ground-runner" | "orb-weaver";
 export type SpiderState =
@@ -34,6 +35,8 @@ export interface Agent {
   carrying: number;
   task: AgentTask;
   targetId: number | null;
+  order: AgentOrder;
+  destination: Vec2 | null;
   age: number;
   alive: boolean;
   controlled: boolean;

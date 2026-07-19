@@ -24,18 +24,31 @@ export default function GameClient() {
     return (
       <main className="entry-screen">
         <div className="entry-grain" aria-hidden="true" />
+        <div className="entry-horizon" aria-hidden="true">
+          <i className="entry-nest" />
+          {Array.from({ length: 16 }, (_, index) => (
+            <i
+              key={index}
+              className="entry-ant"
+              style={{ "--n": index } as React.CSSProperties}
+            />
+          ))}
+        </div>
         <section className="entry-copy">
-          <div className="eyebrow">ESTEPA NORPATAGÓNICA · PRIMERA LUZ</div>
+          <div className="eyebrow">
+            <i /> ESTEPA NORPATAGÓNICA · PRIMERA LUZ
+          </div>
           <h1>
             <span>MANDÍBULA</span>
-            <small>PATAGONIA</small>
+            <small>UNA ESTRATEGIA VIVA</small>
           </h1>
           <p className="entry-lede">
-            No sos la colonia. Todavía sos una sola obrera.
+            No construís un imperio.{" "}
+            <strong>Negociás con un ecosistema.</strong>
           </p>
           <div className="entry-actions">
             <button className="primary-action" onClick={() => begin(false)}>
-              EMERGER
+              FUNDAR LA RED <span>→</span>
             </button>
             {canResume && (
               <button className="text-action" onClick={() => begin(true)}>
@@ -44,8 +57,8 @@ export default function GameClient() {
             )}
           </div>
           <p className="entry-note">
-            Partida local contra bots · 12–20 min · progreso de partida no
-            competitivo
+            ESTRATEGIA SISTÉMICA · TUTORIAL INTERACTIVO · PARTIDA LOCAL 12–20
+            MIN
           </p>
         </section>
         <div className="entry-signal" aria-hidden="true">
@@ -64,9 +77,11 @@ export default function GameClient() {
       style={{ "--ui-scale": settings.uiScale } as React.CSSProperties}
     >
       <Canvas
-        shadows
-        dpr={[1, 1.6]}
-        camera={{ fov: 54, near: 0.05, far: 240, position: [0, 7, 10] }}
+        shadows={false}
+        orthographic
+        dpr={1}
+        camera={{ zoom: 28, near: 0.1, far: 240, position: [20, 27, 20] }}
+        gl={{ antialias: false, powerPreference: "high-performance" }}
       >
         <GameScene />
       </Canvas>

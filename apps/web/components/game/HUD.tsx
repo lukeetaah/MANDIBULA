@@ -1,39 +1,45 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { checksumWorld } from "@mandibula/simulation";
 import { useGameStore } from "@/lib/game-store";
 
 const tutorial = [
   {
-    title: "Orientate",
-    detail: "WASD para moverte. El claro del nido queda detrás.",
+    kicker: "01 · ESCUCHA",
+    title: "Elegí una patrulla",
+    detail: "Arrastrá una caja sobre varias obreras o hacé clic en una.",
   },
   {
-    title: "Buscá sustrato",
-    detail: "Seguí el pulso verde hasta hojas o semillas.",
+    kicker: "02 · INTENCIÓN",
+    title: "Dales un destino",
+    detail:
+      "Clic derecho sobre terreno abierto. Ellas resolverán la formación.",
   },
   {
-    title: "Sujetá",
-    detail: "E junto al material. Una obrera sólo carga una pieza.",
-  },
-  { title: "Volvé", detail: "Entregá con E en la boca oscura del hormiguero." },
-  {
-    title: "Dejá una señal",
-    detail: "Q deposita química. F cambia el tipo desbloqueado.",
+    kicker: "03 · SUSTRATO",
+    title: "Asigná una fuente",
+    detail: "Clic derecho sobre el parche verde al este del nido.",
   },
   {
-    title: "La ruta ya existe",
-    detail: "Ahora abastecé el cultivo. Tab revela la lectura química.",
+    kicker: "04 · RED",
+    title: "Observá el regreso",
+    detail:
+      "No microgestiones: la patrulla cosecha, vuelve y repite el circuito.",
+  },
+  {
+    kicker: "05 · MEMORIA",
+    title: "Volvé visible una decisión",
+    detail: "Pulsá Q o SEÑAL para dejar una memoria química en la patrulla.",
+  },
+  {
+    kicker: "RITO COMPLETO",
+    title: "La colonia ya te escucha",
+    detail:
+      "Ahora dirigís flujos, no cuerpos. Expandí la red antes de la helada.",
   },
 ] as const;
 
-const authorityNames = [
-  "",
-  "RECIÉN EMERGIDA",
-  "OBRERA FUNCIONAL",
-  "ESPECIALISTA",
-];
 const signalLabels = {
   alarm: "ALARMA",
   forage: "FORRAJE",
@@ -42,89 +48,149 @@ const signalLabels = {
   recruit: "RECLUTAR",
 } as const;
 
-function Meter({
-  value,
-  tone = "lichen",
-  label,
-}: {
-  value: number;
-  tone?: "lichen" | "amber" | "danger";
-  label: string;
-}) {
+function Meter({ value, danger = false }: { value: number; danger?: boolean }) {
   return (
-    <div className="meter" aria-label={`${label}: ${Math.round(value * 100)}%`}>
+    <span className="micro-meter" aria-label={`${Math.round(value * 100)}%`}>
       <i
-        className={`meter-fill ${tone}`}
+        className={danger ? "danger" : ""}
         style={{ width: `${Math.max(2, value * 100)}%` }}
       />
-    </div>
+    </span>
   );
 }
 
-function TacticalMap() {
+function MiniMap() {
   const world = useGameStore((state) => state.world);
+  const selectedIds = useGameStore((state) => state.selectedIds);
+  const tactical = useGameStore((state) => state.tactical);
+  const setTactical = useGameStore((state) => state.setTactical);
+  const scaleX = (x: number) => `${50 + (x / 120) * 100}%`;
+  const scaleY = (z: number) => `${50 + (z / 100) * 100}%`;
   return (
-    <section
-      className="tactical-map"
-      aria-label="Lectura química del territorio"
+    <button
+      className={`minimap ${tactical ? "is-chemical" : ""}`}
+      onClick={() => setTactical(!tactical)}
+      aria-label="Alternar lectura química"
     >
-      <div className="map-head">
-        <span>LECTURA QUÍMICA</span>
-        <small>NO ES VISIÓN DIRECTA</small>
-      </div>
-      <div className="map-field">
-        <i className="map-nest player" style={{ left: "50%", top: "50%" }} />
-        <i className="map-nest rival" style={{ left: "80%", top: "76%" }} />
+      <span className="minimap-label">
+        <b>{tactical ? "MEMORIA QUÍMICA" : "TERRITORIO"}</b>
+        <small>TAB</small>
+      </span>
+      <span className="minimap-field">
+        <i className="mini-nest" style={{ left: "50%", top: "50%" }} />
+        <i
+          className="mini-rival"
+          style={{ left: scaleX(37), top: scaleY(-28) }}
+        />
         {world.resources
           .filter((resource) => resource.amount > 0)
           .map((resource) => (
             <i
               key={resource.id}
-              className="map-resource"
+              className="mini-resource"
               style={{
-                left: `${50 + resource.position.x / 1.2}%`,
-                top: `${50 + resource.position.z / 1.0}%`,
+                left: scaleX(resource.position.x),
+                top: scaleY(resource.position.z),
               }}
             />
           ))}
-        {world.pheromones.map((field) => (
-          <i
-            key={field.id}
-            className={`map-signal ${field.type}`}
-            style={{
-              left: `${50 + field.position.x / 1.2}%`,
-              top: `${50 + field.position.z / 1.0}%`,
-              width: field.radius * 2,
-              height: field.radius * 2,
-              opacity: field.intensity,
-            }}
-          />
-        ))}
         {world.spiders
           .filter((spider) => spider.visible)
           .map((spider) => (
             <i
               key={spider.id}
-              className={`map-predator ${spider.dominant ? "dominant" : ""}`}
+              className={`mini-danger ${spider.dominant ? "dominant" : ""}`}
               style={{
-                left: `${50 + spider.position.x / 1.2}%`,
-                top: `${50 + spider.position.z / 1.0}%`,
+                left: scaleX(spider.position.x),
+                top: scaleY(spider.position.z),
               }}
             />
           ))}
-      </div>
-      <div className="map-legend">
-        <span>
-          <i className="dot resource" /> recurso
-        </span>
-        <span>
-          <i className="dot danger" /> riesgo confirmado
-        </span>
-        <span>
-          <i className="dot uncertain" /> señal envejecida
-        </span>
-      </div>
-    </section>
+        {world.agents
+          .filter((agent) => selectedIds.includes(agent.id))
+          .slice(0, 24)
+          .map((agent) => (
+            <i
+              key={agent.id}
+              className="mini-selected"
+              style={{
+                left: scaleX(agent.position.x),
+                top: scaleY(agent.position.z),
+              }}
+            />
+          ))}
+        {tactical &&
+          world.pheromones.map((field) => (
+            <i
+              key={field.id}
+              className={`mini-signal ${field.type}`}
+              style={{
+                left: scaleX(field.position.x),
+                top: scaleY(field.position.z),
+                width: `${Math.max(8, field.radius * 2)}px`,
+                height: `${Math.max(8, field.radius * 2)}px`,
+                opacity: field.intensity,
+              }}
+            />
+          ))}
+      </span>
+    </button>
+  );
+}
+
+function Briefing() {
+  const setHelpOpen = useGameStore((state) => state.setHelpOpen);
+  return (
+    <div
+      className="briefing-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Tutorial de mando colectivo"
+    >
+      <section className="briefing-panel">
+        <div className="briefing-sigil" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </div>
+        <div className="briefing-copy">
+          <small>PROTOCOLO DE EMERGENCIA · 90 SEGUNDOS</small>
+          <h2>
+            No movés hormigas.
+            <br />
+            <em>Movés intención.</em>
+          </h2>
+          <p>
+            MANDÍBULA no premia el clic más rápido. Leés una ecología,
+            distribuís atención y dejás que la colonia convierta órdenes simples
+            en conducta compleja.
+          </p>
+          <div className="briefing-principles">
+            <div>
+              <b>01</b>
+              <span>
+                <strong>SELECCIONÁ</strong>una patrulla con clic o arrastre
+              </span>
+            </div>
+            <div>
+              <b>02</b>
+              <span>
+                <strong>ORDENÁ</strong>con clic derecho en suelo o alimento
+              </span>
+            </div>
+            <div>
+              <b>03</b>
+              <span>
+                <strong>OBSERVÁ</strong>antes de corregir el sistema
+              </span>
+            </div>
+          </div>
+          <button onClick={() => setHelpOpen(false)}>
+            ENTRAR AL PULSO <span>→</span>
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -150,7 +216,7 @@ function SettingsPanel() {
           </button>
         </header>
         <label>
-          Sensibilidad de cámara{" "}
+          Velocidad de cámara{" "}
           <input
             type="range"
             min="0.3"
@@ -208,8 +274,9 @@ function SettingsPanel() {
           />
         </div>
         <p className="settings-note">
-          Controles: WASD mover · Shift acelerar · E interactuar · Q señal · F
-          tipo · Tab lectura · rueda radio · clic derecho cancelar · Esc pausa.
+          WASD o bordes: desplazar · rueda: zoom · botón central: rotar ·
+          clic/arrastre: seleccionar · clic derecho: ordenar · Q: señal · R:
+          regresar · Tab: química · Esc: pausa.
         </p>
       </section>
     </div>
@@ -237,42 +304,26 @@ function Toggle({
   );
 }
 
-function Diagnostics() {
-  const world = useGameStore((state) => state.world);
-  const fps = useGameStore((state) => state.fps);
-  return (
-    <aside className="diagnostics">
-      <b>DIAGNÓSTICO</b>
-      <span>{fps} fps</span>
-      <span>tick {world.tick}</span>
-      <span>
-        {world.agents.filter((agent) => agent.alive).length} entidades
-      </span>
-      <span>{world.pheromones.length} campos</span>
-      <span>hash {checksumWorld(world)}</span>
-    </aside>
-  );
-}
-
 function useAmbientSound(enabled: boolean) {
   const audio = useRef<{ context: AudioContext; gain: GainNode } | null>(null);
   useEffect(() => {
     const start = () => {
       if (audio.current) return;
       const context = new AudioContext();
-      const frames = context.sampleRate * 3;
+      const frames = context.sampleRate * 2;
       const buffer = context.createBuffer(1, frames, context.sampleRate);
       const data = buffer.getChannelData(0);
-      for (let i = 0; i < frames; i += 1)
-        data[i] = (Math.random() * 2 - 1) * (0.35 + Math.sin(i / 19000) * 0.15);
+      for (let index = 0; index < frames; index += 1)
+        data[index] =
+          (Math.random() * 2 - 1) * (0.28 + Math.sin(index / 13000) * 0.1);
       const source = context.createBufferSource();
       source.buffer = buffer;
       source.loop = true;
       const filter = context.createBiquadFilter();
       filter.type = "lowpass";
-      filter.frequency.value = 520;
+      filter.frequency.value = 430;
       const gain = context.createGain();
-      gain.gain.value = enabled ? 0.026 : 0;
+      gain.gain.value = enabled ? 0.018 : 0;
       source.connect(filter).connect(gain).connect(context.destination);
       source.start();
       audio.current = { context, gain };
@@ -283,220 +334,319 @@ function useAmbientSound(enabled: boolean) {
   useEffect(() => {
     if (audio.current)
       audio.current.gain.gain.setTargetAtTime(
-        enabled ? 0.026 : 0,
+        enabled ? 0.018 : 0,
         audio.current.context.currentTime,
         0.12,
       );
   }, [enabled]);
 }
 
+function Diagnostics() {
+  const world = useGameStore((state) => state.world);
+  const fps = useGameStore((state) => state.fps);
+  return (
+    <aside className="diagnostics">
+      <b>SIM</b>
+      <span>{fps} fps</span>
+      <span>tick {world.tick}</span>
+      <span>
+        {world.agents.filter((agent) => agent.alive).length} entidades
+      </span>
+      <span>hash {checksumWorld(world)}</span>
+    </aside>
+  );
+}
+
 export function HUD() {
   const world = useGameStore((state) => state.world);
-  const tactical = useGameStore((state) => state.tactical);
-  const signalRadius = useGameStore((state) => state.signalRadius);
-  const signalType = useGameStore((state) => state.signalType);
+  const selectedIds = useGameStore((state) => state.selectedIds);
+  const selectionBox = useGameStore((state) => state.selectionBox);
+  const helpOpen = useGameStore((state) => state.helpOpen);
   const settingsOpen = useGameStore((state) => state.settingsOpen);
+  const signalType = useGameStore((state) => state.signalType);
+  const signalRadius = useGameStore((state) => state.signalRadius);
+  const setHelpOpen = useGameStore((state) => state.setHelpOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
+  const setSignalRadius = useGameStore((state) => state.setSignalRadius);
+  const cycleSignal = useGameStore((state) => state.cycleSignal);
+  const returnSelected = useGameStore((state) => state.returnSelected);
+  const emitSignal = useGameStore((state) => state.emitSignal);
+  const requestFocus = useGameStore((state) => state.requestFocus);
+  const selectUnits = useGameStore((state) => state.selectUnits);
   const togglePause = useGameStore((state) => state.togglePause);
   const restart = useGameStore((state) => state.restart);
   const sound = useGameStore((state) => state.settings.sound);
   const subtitles = useGameStore((state) => state.settings.subtitles);
   const setFps = useGameStore((state) => state.setFps);
-  const player = world.agents.find((agent) => agent.id === world.playerAgentId);
+  const selected = world.agents.filter((agent) =>
+    selectedIds.includes(agent.id),
+  );
+  const colony = world.agents.filter(
+    (agent) =>
+      agent.alive && agent.kind === "ant" && agent.faction === "acromyrmex",
+  );
   const latestEvent = world.eventLog[world.eventLog.length - 1];
-  const diagnostics =
-    process.env.NODE_ENV === "development" ||
-    process.env.NEXT_PUBLIC_ENABLE_DIAGNOSTICS === "true";
-  const lastFrame = useRef(performance.now());
-  const frameCount = useRef(0);
-  const [showControls, setShowControls] = useState(true);
+  const tutorialItem =
+    tutorial[Math.min(world.tutorialStep, tutorial.length - 1)]!;
+  const frame = useRef({ at: performance.now(), count: 0 });
 
   useAmbientSound(sound);
   useEffect(() => {
     let handle = 0;
-    const frame = (now: number) => {
-      frameCount.current += 1;
-      if (now - lastFrame.current > 1000) {
+    const count = (now: number) => {
+      frame.current.count += 1;
+      if (now - frame.current.at >= 1000) {
         setFps(
-          Math.round((frameCount.current * 1000) / (now - lastFrame.current)),
+          Math.round((frame.current.count * 1000) / (now - frame.current.at)),
         );
-        frameCount.current = 0;
-        lastFrame.current = now;
+        frame.current = { at: now, count: 0 };
       }
-      handle = requestAnimationFrame(frame);
+      handle = requestAnimationFrame(count);
     };
-    handle = requestAnimationFrame(frame);
+    handle = requestAnimationFrame(count);
     return () => cancelAnimationFrame(handle);
   }, [setFps]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setShowControls(false), 9000);
-    return () => window.clearTimeout(timer);
-  }, []);
 
-  const danger = useMemo(
-    () =>
-      world.spiders.some(
-        (spider) =>
-          spider.visible &&
-          player &&
-          (spider.position.x - player.position.x) ** 2 +
-            (spider.position.z - player.position.z) ** 2 <
-            180,
-      ),
-    [player, world.spiders],
-  );
-  const objectiveProgress = Math.min(1, world.colonyBiomass / 24);
-  const tutorialItem =
-    tutorial[Math.min(world.tutorialStep, tutorial.length - 1)]!;
+  const danger = useMemo(() => {
+    const watched = selected.length ? selected : colony.slice(0, 1);
+    return world.spiders.some(
+      (spider) =>
+        spider.visible &&
+        watched.some(
+          (agent) =>
+            (spider.position.x - agent.position.x) ** 2 +
+              (spider.position.z - agent.position.z) ** 2 <
+            120,
+        ),
+    );
+  }, [colony, selected, world.spiders]);
+  const averageEnergy = selected.length
+    ? selected.reduce((sum, agent) => sum + agent.energy, 0) / selected.length
+    : 0;
+  const carrying = selected.filter((agent) => agent.carrying > 0).length;
+  const available = colony
+    .filter(
+      (agent) => agent.order === "autonomous" || agent.order === undefined,
+    )
+    .map((agent) => agent.id);
+  const diagnostics =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_ENABLE_DIAGNOSTICS === "true";
 
   return (
     <div className="hud">
-      <header className="top-bar">
-        <div className="colony-mark">
+      <header className="rts-topbar">
+        <div className="colony-brand">
           <i />
           <div>
-            <span>ACROMYRMEX</span>
-            <small>{authorityNames[world.authorityLevel]}</small>
+            <b>MANDÍBULA</b>
+            <span>ACROMYRMEX · RED 01</span>
           </div>
         </div>
-        <div className="climate">
-          <span>{Math.round(world.temperature)}°</span>
-          <i className={world.rain > 0.15 ? "weather rain" : "weather wind"} />
-          <small>
-            {world.rain > 0.15
-              ? "LLUVIA BREVE"
-              : world.temperature < 8
-                ? "ACTIVIDAD LENTA"
-                : "VIENTO SECO"}
-          </small>
+        <div className="world-pulse">
+          <span>
+            <small>CULTIVO</small>
+            <b>{Math.round(world.fungusHealth * 100)}%</b>
+          </span>
+          <span>
+            <small>BIOMASA</small>
+            <b>{Math.floor(world.colonyBiomass)}</b>
+          </span>
+          <span>
+            <small>OBRERAS</small>
+            <b>{colony.length}</b>
+          </span>
+          <span>
+            <small>CLIMA</small>
+            <b>{Math.round(world.temperature)}°</b>
+          </span>
         </div>
         <div className="top-actions">
+          <button onClick={() => setHelpOpen(true)}>GUÍA</button>
           <button
             onClick={() => setSettingsOpen(true)}
             aria-label="Abrir accesibilidad"
           >
-            PERCEPCIÓN
+            AJUSTES
           </button>
-          <button onClick={togglePause}>
-            {world.paused ? "SEGUIR" : "PAUSA"}
-          </button>
+          <button onClick={togglePause}>{world.paused ? "SEGUIR" : "Ⅱ"}</button>
         </div>
       </header>
 
-      <aside className="colony-status">
-        <div className="status-title">
-          <span>CULTIVO</span>
-          <small>
-            {world.fungusHealth > 0.7
-              ? "VIGOROSO"
-              : world.fungusHealth > 0.4
-                ? "NECESITA SUSTRATO"
-                : "RIESGO DE COLAPSO"}
-          </small>
-        </div>
-        <Meter
-          label="Salud del cultivo"
-          value={world.fungusHealth}
-          tone={world.fungusHealth < 0.4 ? "danger" : "lichen"}
-        />
-        <div className="status-row">
-          <span>CRÍAS</span>
-          <Meter
-            label="Salud de crías"
-            value={world.broodHealth}
-            tone="amber"
-          />
-        </div>
-        <div className="status-row">
-          <span>ENERGÍA</span>
-          <Meter
-            label="Energía individual"
-            value={player?.energy ?? 0}
-            tone={player && player.energy < 0.25 ? "danger" : "amber"}
-          />
-        </div>
-        <div className="mandate">
-          <span>MANDATO QUÍMICO</span>
-          <div>
-            {[1, 2, 3].map((level) => (
-              <i
-                key={level}
-                className={world.authorityLevel >= level ? "active" : ""}
-              />
-            ))}
-          </div>
-        </div>
-      </aside>
-
-      <section className="objective">
-        <small>ANTES DE LA HELADA</small>
+      <section className="mission-card">
+        <small>
+          VENTANA TÉRMICA · {Math.max(0, 15 - Math.floor(world.tick / 600))}:00
+        </small>
         <div>
-          <strong>ABASTECÉ EL CULTIVO</strong>
-          <span>{Math.floor(world.colonyBiomass)} / 24</span>
+          <h2>Alimentá lo que no ves.</h2>
+          <b>
+            {Math.floor(world.colonyBiomass)} <i>/ 24</i>
+          </b>
         </div>
-        <Meter label="Progreso del objetivo" value={objectiveProgress} />
-        <p>La colonia rival lleva {Math.floor(world.rivalBiomass)}.</p>
+        <Meter value={world.colonyBiomass / 24} />
+        <p>
+          El cultivo subterráneo convierte hojas en futuro. La colonia rival
+          lleva {Math.floor(world.rivalBiomass)}.
+        </p>
       </section>
 
-      {world.tutorialStep < 5 && (
-        <section className="tutorial-card">
-          <span>0{world.tutorialStep + 1}</span>
-          <div>
-            <strong>{tutorialItem.title}</strong>
-            <p>{tutorialItem.detail}</p>
-          </div>
-        </section>
-      )}
+      <section className={`tutorial-beacon step-${world.tutorialStep}`}>
+        <small>{tutorialItem.kicker}</small>
+        <h3>{tutorialItem.title}</h3>
+        <p>{tutorialItem.detail}</p>
+        <div className="tutorial-track">
+          {tutorial.map((_, index) => (
+            <i
+              key={index}
+              className={index <= world.tutorialStep ? "done" : ""}
+            />
+          ))}
+        </div>
+      </section>
+
       {danger && <div className="danger-vignette" aria-hidden="true" />}
       {danger && (
         <div className="danger-pulse">
-          <i /> VIBRACIÓN IRREGULAR
+          <i /> PATRÓN DE CAZA DETECTADO
         </div>
       )}
-      {tactical && <TacticalMap />}
 
-      <footer className="bottom-bar">
-        <div className="signal-readout">
-          <small>SEÑAL ACTIVA</small>
-          <strong>{signalLabels[signalType]}</strong>
-          <span>RADIO {signalRadius} · Q</span>
+      <section
+        className={`selection-panel ${selected.length ? "has-selection" : ""}`}
+      >
+        <div className="selection-avatar">
+          <span>{selected.length || "—"}</span>
+          <small>{selected.length === 1 ? "OBRERA" : "PATRULLA"}</small>
         </div>
-        <button className="tactical-button" aria-pressed={tactical}>
-          TAB <span>{tactical ? "VOLVER AL CUERPO" : "LECTURA COLECTIVA"}</span>
-        </button>
-        {showControls && (
-          <div className="control-hint">
-            WASD mover · E sujetar/entregar · Shift acelerar · clic para
-            orientar cámara
+        <div className="selection-copy">
+          <small>
+            {selected.length ? "SELECCIÓN ACTIVA" : "SIN SELECCIÓN"}
+          </small>
+          <strong>
+            {selected.length
+              ? `${selected.length} conciencias, una intención`
+              : "Arrastrá sobre la colonia"}
+          </strong>
+          <div className="selection-stats">
+            <span>
+              ENERGÍA{" "}
+              <Meter value={averageEnergy} danger={averageEnergy < 0.3} />
+            </span>
+            <span>
+              CARGA{" "}
+              <b>
+                {carrying}/{selected.length || 0}
+              </b>
+            </span>
           </div>
+        </div>
+        {!selected.length && (
+          <button
+            className="select-available"
+            onClick={() => selectUnits(available.slice(0, 12))}
+          >
+            ELEGIR 12 DISPONIBLES
+          </button>
         )}
-      </footer>
+      </section>
 
+      <nav className="command-dock" aria-label="Órdenes de colonia">
+        <button className="command passive" disabled={!selected.length}>
+          <span className="command-icon move">⌖</span>
+          <b>MOVER</b>
+          <small>clic derecho</small>
+        </button>
+        <button className="command passive" disabled={!selected.length}>
+          <span className="command-icon gather">◇</span>
+          <b>COSECHAR</b>
+          <small>sobre recurso</small>
+        </button>
+        <button
+          className="command"
+          disabled={!selected.length}
+          onClick={returnSelected}
+        >
+          <span className="command-icon return">↙</span>
+          <b>REGRESAR</b>
+          <small>R</small>
+        </button>
+        <button
+          className="command signal-command"
+          disabled={!selected.length}
+          onClick={() => emitSignal()}
+        >
+          <span className="command-icon signal">◉</span>
+          <b>{signalLabels[signalType]}</b>
+          <small>SEÑAL · Q</small>
+        </button>
+        <button
+          className="command narrow"
+          onClick={cycleSignal}
+          title="Cambiar señal"
+        >
+          <span className="command-icon">↻</span>
+          <b>TIPO</b>
+          <small>cambiar</small>
+        </button>
+        <button
+          className="command narrow"
+          disabled={!selected.length}
+          onClick={requestFocus}
+        >
+          <span className="command-icon">◎</span>
+          <b>ENFOCAR</b>
+          <small>cámara</small>
+        </button>
+        <label className="radius-control">
+          RADIO{" "}
+          <input
+            type="range"
+            min="2"
+            max="14"
+            value={signalRadius}
+            onChange={(event) => setSignalRadius(Number(event.target.value))}
+          />
+          <b>{signalRadius}m</b>
+        </label>
+      </nav>
+
+      <MiniMap />
+      <div className="camera-hint">
+        WASD / BORDES <i /> RUEDA ZOOM <i /> BOTÓN CENTRAL ROTAR
+      </div>
+
+      {selectionBox && <div className="selection-box" style={selectionBox} />}
       {subtitles && latestEvent && world.tick - latestEvent.tick < 45 && (
         <div className="subtitle">
           <i />
           {latestEvent.message}
         </div>
       )}
-      {world.paused && !settingsOpen && (
-        <div className="paused-card">
-          <small>EL MODO LOCAL ESTÁ PAUSADO</small>
-          <strong>La estepa espera.</strong>
-          <button onClick={togglePause}>Continuar</button>
+      {world.rain > 0.15 && (
+        <div className="weather-wash">
+          <span>LLUVIA · LAS SEÑALES SE DEGRADAN</span>
         </div>
       )}
+      {world.paused && !settingsOpen && (
+        <div className="paused-card">
+          <small>SIMULACIÓN EN SUSPENSO</small>
+          <strong>La estepa contiene el aliento.</strong>
+          <button onClick={togglePause}>CONTINUAR</button>
+        </div>
+      )}
+      {helpOpen && <Briefing />}
       {settingsOpen && <SettingsPanel />}
       {world.status !== "playing" && (
         <div className={`end-card ${world.status}`}>
           <small>
             {world.status === "victory"
               ? "LA VENTANA SE CIERRA"
-              : "LA COLONIA CEDE"}
+              : "LA RED CEDE"}
           </small>
           <h2>
             {world.status === "victory"
-              ? "El cultivo sobrevivirá."
-              : "La memoria no alcanza."}
+              ? "El cultivo recordará esta ruta."
+              : "La memoria no alcanzó."}
           </h2>
           <p>{world.statusReason}</p>
           <div className="end-stats">
@@ -510,7 +660,7 @@ export function HUD() {
               <b>{world.metrics.attacksAvoided}</b>evasiones
             </span>
           </div>
-          <button onClick={restart}>NUEVA EMERGENCIA</button>
+          <button onClick={restart}>NUEVA COLONIA</button>
         </div>
       )}
       {diagnostics && <Diagnostics />}

@@ -107,6 +107,22 @@ describe("simulación determinista", () => {
     expect(world.authorityLevel).toBe(3);
   });
 
+  it("conserva una orden RTS de movimiento hasta alcanzar el destino", () => {
+    const world = createWorld(51);
+    const worker = world.agents.find(
+      (agent) => agent.id === world.playerAgentId,
+    )!;
+    const start = { ...worker.position };
+    stepWorld(world, [
+      command(world, "ASSIGN_PRIORITY", { position: { x: 9, z: 6 } }),
+    ]);
+    expect(worker.order).toBe("move");
+    expect(worker.destination).toEqual({ x: 9, z: 6 });
+    for (let index = 0; index < 12; index += 1) stepWorld(world);
+    expect(worker.position.x).toBeGreaterThan(start.x);
+    expect(worker.position.z).toBeGreaterThan(start.z);
+  });
+
   it("la muerte del individuo transfiere control y reduce mandato", () => {
     const world = createWorld(6);
     const player = world.agents.find(
