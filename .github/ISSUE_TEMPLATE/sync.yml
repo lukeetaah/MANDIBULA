@@ -1,0 +1,20 @@
+name: Desincronización
+description: Divergencia determinista o reconexión
+title: "[Sync] "
+labels: [networking]
+body:
+  - type: input
+    id: match
+    attributes: { label: Match, description: ID sin credenciales }
+  - type: input
+    id: tick
+    attributes: { label: Primer tick divergente }
+    validations: { required: true }
+  - type: textarea
+    id: checksums
+    attributes:
+      {
+        label: Checksums y protocolo,
+        description: No incluir tokens ni snapshots privados,
+      }
+    validations: { required: true }

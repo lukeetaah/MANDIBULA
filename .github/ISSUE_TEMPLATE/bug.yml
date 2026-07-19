@@ -1,0 +1,25 @@
+name: Error de juego
+description: Informar un fallo reproducible
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      {
+        label: Qué ocurrió,
+        description: Describir el resultado visible y esperado,
+      }
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      {
+        label: Pasos,
+        description: Incluir semilla y tick si aparecen en diagnóstico,
+      }
+    validations: { required: true }
+  - type: input
+    id: environment
+    attributes: { label: Navegador y sistema }
+    validations: { required: true }

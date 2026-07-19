@@ -1,0 +1,24 @@
+name: Propuesta de sistema
+description: Proponer una mejora coherente con la simulación
+title: "[Sistema] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      {
+        label: Decisión que falta,
+        description: Qué decisión nueva ofrece al jugador,
+      }
+    validations: { required: true }
+  - type: textarea
+    id: impact
+    attributes:
+      {
+        label: Impacto,
+        description: Simulación,
+        UX,
+        rendimiento,
+        red y biología,
+      }
+    validations: { required: true }

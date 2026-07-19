@@ -1,0 +1,21 @@
+{
+  "name": "@mandibula/networking",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mandibula/simulation": "workspace:*",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

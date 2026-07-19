@@ -1,0 +1,23 @@
+name: Corrección biológica
+description: Señalar evidencia incorrecta o una abstracción no declarada
+title: "[Biología] "
+labels: [biology]
+body:
+  - type: input
+    id: mechanic
+    attributes: { label: Mecánica o afirmación }
+    validations: { required: true }
+  - type: textarea
+    id: evidence
+    attributes:
+      {
+        label: Evidencia primaria,
+        description: DOI o publicación académica/técnica; no blogs o videos,
+      }
+    validations: { required: true }
+  - type: dropdown
+    id: proposed-tag
+    attributes:
+      label: Etiqueta propuesta
+      options: [DOCUMENTADA, GENERAL, PLAUSIBLE, ABSTRACCIÓN, FICCIÓN]
+    validations: { required: true }
