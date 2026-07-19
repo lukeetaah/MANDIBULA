@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { checksumWorld } from "@mandibula/simulation";
+import {
+  checksumWorld,
+  type ColonyPriority,
+  type NestChamberType,
+} from "@mandibula/simulation";
 import { useGameStore } from "@/lib/game-store";
 
 const tutorial = [
@@ -33,10 +37,31 @@ const tutorial = [
     detail: "Pulsá Q o SEÑAL para dejar una memoria química en la patrulla.",
   },
   {
-    kicker: "RITO COMPLETO",
-    title: "La colonia ya te escucha",
+    kicker: "06 · RITMO",
+    title: "Acelerá el pulso",
+    detail: "Probá ×2 arriba. La simulación avanza sin multiplicar renders.",
+  },
+  {
+    kicker: "07 · INTERIOR",
+    title: "Entrá al hormiguero",
+    detail: "Abrí SUBSUELO: el hongo, la cría y los residuos dependen de vos.",
+  },
+  {
+    kicker: "08 · ARQUITECTURA",
+    title: "Excavá una cámara",
     detail:
-      "Ahora dirigís flujos, no cuerpos. Expandí la red antes de la helada.",
+      "Gastá biomasa en una cámara que resuelva la necesidad más urgente.",
+  },
+  {
+    kicker: "09 · ECOLOGÍA",
+    title: "Leé otra especie",
+    detail: "Volvé a superficie y hacé clic sobre un insecto o una araña.",
+  },
+  {
+    kicker: "RITO COMPLETO",
+    title: "La colonia depende de tus criterios",
+    detail:
+      "Alterná logística, arquitectura y riesgo. No existe una única cosecha correcta.",
   },
 ] as const;
 
@@ -46,6 +71,49 @@ const signalLabels = {
   home: "RETORNO",
   avoid: "EVITAR",
   recruit: "RECLUTAR",
+} as const;
+
+const faunaProfiles = {
+  wasp: {
+    name: "VESPULA",
+    role: "CAZADORA AÉREA",
+    effect: "Hostiga arañas pequeñas y abandona combates costosos.",
+  },
+  bumblebee: {
+    name: "BOMBUS",
+    role: "CIRCUITO FLORAL",
+    effect: "Mantiene el néctar del mallín y detecta telas en vuelo.",
+  },
+  termite: {
+    name: "POROTERMES",
+    role: "INGENIERÍA DE MADERA",
+    effect: "Sella corredores cuando percibe vibraciones de depredador.",
+  },
+  fly: {
+    name: "MOSCA DE ESTEPA",
+    role: "PRESA MÓVIL",
+    effect: "Su desaparición anticipa actividad de arañas tejedoras.",
+  },
+  beetle: {
+    name: "ESCARABAJO",
+    role: "RECICLADOR TERRESTRE",
+    effect: "Compite por restos y delata corredores de caza.",
+  },
+  ant: {
+    name: "OTRA COLONIA",
+    role: "COMPETENCIA TERRITORIAL",
+    effect: "Disputa las fuentes sin recibir información privilegiada.",
+  },
+} as const;
+
+const chamberCopy = {
+  fungus: ["JARDÍN FÚNGICO", "amortigua hambre y estabiliza el cultivo"],
+  nursery: ["CÁMARA DE CRÍA", "recupera larvas cuando el hongo está sano"],
+  ventilation: [
+    "POZO DE VENTILACIÓN",
+    "reduce extremos térmicos y exceso de CO₂",
+  ],
+  waste: ["BOLSÓN DE RESIDUOS", "separa contaminación del jardín"],
 } as const;
 
 function Meter({ value, danger = false }: { value: number; danger?: boolean }) {
@@ -182,6 +250,12 @@ function Briefing() {
               <b>03</b>
               <span>
                 <strong>OBSERVÁ</strong>antes de corregir el sistema
+              </span>
+            </div>
+            <div>
+              <b>04</b>
+              <span>
+                <strong>ALTERNÁ</strong>superficie, ecología y cámaras
               </span>
             </div>
           </div>
@@ -365,10 +439,21 @@ export function HUD() {
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const signalType = useGameStore((state) => state.signalType);
   const signalRadius = useGameStore((state) => state.signalRadius);
+  const timeScale = useGameStore((state) => state.timeScale);
+  const underground = useGameStore((state) => state.underground);
+  const observed = useGameStore((state) => state.observed);
   const setHelpOpen = useGameStore((state) => state.setHelpOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   const setSignalRadius = useGameStore((state) => state.setSignalRadius);
   const cycleSignal = useGameStore((state) => state.cycleSignal);
+  const setTimeScale = useGameStore((state) => state.setTimeScale);
+  const setUnderground = useGameStore((state) => state.setUnderground);
+  const clearInspection = useGameStore((state) => state.clearInspection);
+  const attackObserved = useGameStore((state) => state.attackObserved);
+  const retreatSelected = useGameStore((state) => state.retreatSelected);
+  const expandNest = useGameStore((state) => state.expandNest);
+  const setColonyPriority = useGameStore((state) => state.setColonyPriority);
+  const issueMove = useGameStore((state) => state.issueMove);
   const returnSelected = useGameStore((state) => state.returnSelected);
   const emitSignal = useGameStore((state) => state.emitSignal);
   const requestFocus = useGameStore((state) => state.requestFocus);
@@ -432,9 +517,45 @@ export function HUD() {
   const diagnostics =
     process.env.NODE_ENV === "development" ||
     process.env.NEXT_PUBLIC_ENABLE_DIAGNOSTICS === "true";
+  const chamberTotal = Object.values(world.nest.chambers).reduce(
+    (sum, level) => sum + level,
+    0,
+  );
+  const mission =
+    world.seasonPhase === 1
+      ? {
+          kicker: "I · REACTIVAR",
+          title: "Alimentá lo que no ves.",
+          current: world.colonyBiomass,
+          target: 18,
+          note: "El jardín fúngico necesita sustrato antes de poder expandirse.",
+        }
+      : world.seasonPhase === 2
+        ? {
+            kicker: "II · HABITAR",
+            title: "Convertí refugio en organismo.",
+            current: chamberTotal,
+            target: 7,
+            note: "Excavá cámaras y sostené la cría; cosechar ya no alcanza.",
+          }
+        : {
+            kicker: "III · PERSISTIR",
+            title: "Llegá completa al invierno.",
+            current: world.colonyBiomass,
+            target: 52,
+            note: "Territorio, higiene y depredadores deciden el desenlace.",
+          };
+  const observedAgent =
+    observed?.kind === "agent"
+      ? world.agents.find((agent) => agent.id === observed.id)
+      : undefined;
+  const observedSpider =
+    observed?.kind === "spider"
+      ? world.spiders.find((spider) => spider.id === observed.id)
+      : undefined;
 
   return (
-    <div className="hud">
+    <div className={`hud ${underground ? "is-underground" : ""}`}>
       <header className="rts-topbar">
         <div className="colony-brand">
           <i />
@@ -462,6 +583,24 @@ export function HUD() {
           </span>
         </div>
         <div className="top-actions">
+          <div className="speed-control" aria-label="Velocidad de simulación">
+            {([1, 2, 3, 6] as const).map((speed) => (
+              <button
+                key={speed}
+                className={timeScale === speed ? "active" : ""}
+                onClick={() => setTimeScale(speed)}
+                aria-label={`Velocidad por ${speed}`}
+              >
+                ×{speed}
+              </button>
+            ))}
+          </div>
+          <button
+            className={underground ? "active" : ""}
+            onClick={() => setUnderground(!underground)}
+          >
+            {underground ? "SUPERFICIE" : "SUBSUELO"}
+          </button>
           <button onClick={() => setHelpOpen(true)}>GUÍA</button>
           <button
             onClick={() => setSettingsOpen(true)}
@@ -475,19 +614,16 @@ export function HUD() {
 
       <section className="mission-card">
         <small>
-          VENTANA TÉRMICA · {Math.max(0, 15 - Math.floor(world.tick / 600))}:00
+          {mission.kicker} · {Math.max(0, 20 - Math.floor(world.tick / 600))}:00
         </small>
         <div>
-          <h2>Alimentá lo que no ves.</h2>
+          <h2>{mission.title}</h2>
           <b>
-            {Math.floor(world.colonyBiomass)} <i>/ 24</i>
+            {Math.floor(mission.current)} <i>/ {mission.target}</i>
           </b>
         </div>
-        <Meter value={world.colonyBiomass / 24} />
-        <p>
-          El cultivo subterráneo convierte hojas en futuro. La colonia rival
-          lleva {Math.floor(world.rivalBiomass)}.
-        </p>
+        <Meter value={mission.current / mission.target} />
+        <p>{mission.note}</p>
       </section>
 
       <section className={`tutorial-beacon step-${world.tutorialStep}`}>
@@ -503,6 +639,153 @@ export function HUD() {
           ))}
         </div>
       </section>
+
+      {underground && (
+        <section className="nest-console">
+          <header>
+            <div>
+              <small>CORTE A 30–70 CM · RED VIVA</small>
+              <h2>Arquitectura del nido</h2>
+            </div>
+            <button onClick={() => setUnderground(false)}>VOLVER ↑</button>
+          </header>
+          <div className="nest-vitals">
+            <span>
+              HUMEDAD <b>{Math.round(world.nest.moisture * 100)}%</b>
+            </span>
+            <span>
+              HIGIENE <b>{Math.round(world.nest.hygiene * 100)}%</b>
+            </span>
+            <span>
+              VENTILACIÓN <b>{Math.round(world.nest.ventilation * 100)}%</b>
+            </span>
+            <span>
+              RESIDUOS <b>{Math.round(world.nest.wasteLoad * 100)}%</b>
+            </span>
+          </div>
+          <div className="chamber-grid">
+            {(
+              Object.entries(chamberCopy) as [
+                NestChamberType,
+                (typeof chamberCopy)[NestChamberType],
+              ][]
+            ).map(([chamber, copy]) => {
+              const level = world.nest.chambers[chamber];
+              const cost =
+                world.colonyPriority === "excavate"
+                  ? 3 + level * 2
+                  : 4 + level * 3;
+              return (
+                <button
+                  key={chamber}
+                  onClick={() => expandNest(chamber)}
+                  disabled={level >= 3 || world.colonyBiomass < cost}
+                >
+                  <small>NIVEL {level} / 3</small>
+                  <strong>{copy[0]}</strong>
+                  <span>{copy[1]}</span>
+                  <b>{level >= 3 ? "MADURA" : `EXCAVAR · ${cost} biomasa`}</b>
+                </button>
+              );
+            })}
+          </div>
+          <div className="priority-strip">
+            <small>¿QUÉ NECESIDAD DOMINA EL TRÁNSITO?</small>
+            {(
+              ["forage", "brood", "excavate", "defend"] as ColonyPriority[]
+            ).map((priority) => (
+              <button
+                key={priority}
+                className={world.colonyPriority === priority ? "active" : ""}
+                onClick={() => setColonyPriority(priority)}
+              >
+                {priority === "forage"
+                  ? "HONGO"
+                  : priority === "brood"
+                    ? "CRÍA"
+                    : priority === "excavate"
+                      ? "EXCAVAR"
+                      : "DEFENSA"}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!underground && (observedAgent || observedSpider) && (
+        <section className="ecology-dossier">
+          <button className="dossier-close" onClick={clearInspection}>
+            ×
+          </button>
+          {observedSpider ? (
+            <>
+              <small>LECTURA DE VIBRACIÓN · DEPREDADOR</small>
+              <h2>
+                {observedSpider.guild === "orb-weaver"
+                  ? "Araña de tela"
+                  : observedSpider.dominant
+                    ? "Corredora dominante"
+                    : "Corredora terrestre"}
+              </h2>
+              <p>
+                {observedSpider.state === "sated"
+                  ? "Está saciada y busca refugio: combatir ahora desperdicia obreras."
+                  : observedSpider.dominant
+                    ? "Controla un corredor. Rodearla sirve para expulsar, no para vaciar una barra."
+                    : "Puede aislar una patrulla; masa, terreno y retirada importan."}
+              </p>
+              <div className="dossier-functions">
+                <span>
+                  HAMBRE <Meter value={observedSpider.hunger} />
+                </span>
+                <span>
+                  MOVILIDAD <Meter value={observedSpider.mobility} />
+                </span>
+                <span>
+                  AGITACIÓN <Meter value={observedSpider.agitation} danger />
+                </span>
+              </div>
+              <div className="dossier-actions">
+                <button disabled={!selected.length} onClick={attackObserved}>
+                  RODEAR CON {selected.length || "—"}
+                </button>
+                <button disabled={!selected.length} onClick={retreatSelected}>
+                  RETIRAR PATRULLA
+                </button>
+              </div>
+            </>
+          ) : observedAgent ? (
+            <>
+              <small>RED TRÓFICA · ACTIVIDAD OBSERVADA</small>
+              <h2>{faunaProfiles[observedAgent.kind].name}</h2>
+              <b className="dossier-role">
+                {faunaProfiles[observedAgent.kind].role}
+              </b>
+              <p>{faunaProfiles[observedAgent.kind].effect}</p>
+              <div className="dossier-functions">
+                <span>
+                  ENERGÍA <Meter value={observedAgent.energy} />
+                </span>
+                <span>
+                  INTEGRIDAD <Meter value={observedAgent.integrity} />
+                </span>
+                <span>CONDUCTA · {observedAgent.task.toUpperCase()}</span>
+              </div>
+              <div className="dossier-actions">
+                <button
+                  disabled={!selected.length}
+                  onClick={() => issueMove(observedAgent.position)}
+                >
+                  LLEVAR PATRULLA
+                </button>
+                <button disabled={!selected.length} onClick={retreatSelected}>
+                  NO INTERFERIR
+                </button>
+              </div>
+            </>
+          ) : null}
+        </section>
+      )}
 
       {danger && <div className="danger-vignette" aria-hidden="true" />}
       {danger && (

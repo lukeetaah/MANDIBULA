@@ -123,6 +123,39 @@ describe("simulación determinista", () => {
     expect(worker.position.z).toBeGreaterThan(start.z);
   });
 
+  it("excava cámaras con costo y efecto deterministas", () => {
+    const world = createWorld(71);
+    world.colonyBiomass = 20;
+    const before = world.colonyBiomass;
+    stepWorld(world, [command(world, "EXPAND_NEST", { chamber: "waste" })]);
+    expect(world.nest.chambers.waste).toBe(1);
+    expect(world.colonyBiomass).toBeLessThan(before);
+    expect(world.eventLog.some((item) => item.type === "nest-expanded")).toBe(
+      true,
+    );
+  });
+
+  it("mantiene una orden de rodeo hasta que el depredador desaparece", () => {
+    const world = createWorld(72);
+    const spider = world.spiders[0]!;
+    spider.visible = true;
+    spider.nextArrivalTick = 0;
+    stepWorld(world, [command(world, "ATTACK", { targetId: spider.id })]);
+    const worker = world.agents.find(
+      (agent) => agent.id === world.playerAgentId,
+    )!;
+    expect(worker.order).toBe("attack");
+    expect(worker.targetId).toBe(spider.id);
+  });
+
+  it("avanza de fase sin cerrar la partida al completar la primera cosecha", () => {
+    const world = createWorld(73);
+    world.colonyBiomass = 18;
+    stepWorld(world);
+    expect(world.seasonPhase).toBe(2);
+    expect(world.status).toBe("playing");
+  });
+
   it("la muerte del individuo transfiere control y reduce mandato", () => {
     const world = createWorld(6);
     const player = world.agents.find(

@@ -2,18 +2,22 @@
 
 ## Promesa
 
-El jugador no encarna una hormiga ni construye edificios. Distribuye intención sobre patrullas reemplazables y aprende a intervenir lo mínimo necesario para que la colonia resuelva tránsito, cosecha y riesgo. La partida pregunta si puede sostener el cultivo antes de la helada mientras un rival agota recursos y el paisaje cambia rutas.
+El jugador distribuye intención sobre patrullas reemplazables y arquitectura viva. No coloca edificios humanos: altera prioridades químicas y decide qué cámara excavar para que la colonia resuelva tránsito, cultivo, cría, residuos y riesgo. La partida pregunta si puede llegar completa al invierno mientras un rival agota recursos y el paisaje cambia rutas.
 
 ## Bucle de 30 segundos
 
-Leer territorio → seleccionar patrulla → indicar destino o fuente → observar el circuito → fortalecer cultivo → convertir una decisión en señal → redirigir la red.
+Leer territorio → seleccionar patrulla → indicar destino, fuente o depredador → observar el circuito → alternar superficie/subsuelo → resolver una necesidad del nido → redirigir la red.
 
-Los primeros noventa segundos forman un tutorial seguro de cinco acciones: seleccionar, mover, cosechar, observar la entrega y emitir memoria química. La colonia propia permanece latente sin órdenes y el rival retrasa su salida para que aprender no sea una desventaja. No hay conversación, equipo humano ni barras sobre individuos.
+El tutorial encadena selección, movimiento, cosecha, entrega, memoria química, velocidad, subsuelo, excavación y lectura de fauna. La colonia propia permanece latente sin órdenes y el rival retrasa su salida para que aprender no sea una desventaja. No hay conversación, equipo humano ni barras sobre individuos.
+
+La velocidad ×1/×2/×3/×6 ejecuta más pasos fijos dentro del mismo pulso de interfaz: no multiplica renders ni altera el resultado determinista de cada tick.
 
 ## Victoria y derrota
 
-- Victoria: 24 unidades de sustrato y cultivo estable antes de cerrar la ventana térmica.
-- Derrota: el rival llega primero, colapsa el cultivo o ya no quedan obreras.
+- Fase I, reactivar: estabilizar el jardín fúngico.
+- Fase II, habitar: ampliar cámaras y sostener la cría.
+- Fase III, persistir: conservar biomasa, higiene y territorio hasta el invierno.
+- Derrota: el rival domina la red, colapsa el cultivo o ya no quedan obreras.
 - La araña no es condición obligatoria de victoria. Sobrevivir y ceder un sector son resultados válidos.
 
 ## Autoridad

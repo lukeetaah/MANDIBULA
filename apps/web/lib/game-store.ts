@@ -6,6 +6,8 @@ import {
   serializeSnapshot,
   stepWorld,
   type PheromoneType,
+  type ColonyPriority,
+  type NestChamberType,
   type SimCommand,
   type Vec2,
   type WorldState,
@@ -51,6 +53,9 @@ interface GameStore {
   focusRequest: number;
   signalRadius: number;
   signalType: PheromoneType;
+  timeScale: 1 | 2 | 3 | 6;
+  underground: boolean;
+  observed: { kind: "agent" | "spider"; id: number } | null;
   fps: number;
   settings: AccessibilitySettings;
   pending: SimCommand[];
@@ -70,6 +75,14 @@ interface GameStore {
   setSettingsOpen: (value: boolean) => void;
   setSignalRadius: (value: number) => void;
   cycleSignal: () => void;
+  setTimeScale: (value: 1 | 2 | 3 | 6) => void;
+  setUnderground: (value: boolean) => void;
+  inspect: (kind: "agent" | "spider", id: number) => void;
+  clearInspection: () => void;
+  attackObserved: () => void;
+  retreatSelected: () => void;
+  expandNest: (chamber: NestChamberType) => void;
+  setColonyPriority: (priority: ColonyPriority) => void;
   setFps: (value: number) => void;
   setSetting: <K extends keyof AccessibilitySettings>(
     key: K,
@@ -142,6 +155,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   focusRequest: 0,
   signalRadius: 5,
   signalType: "forage",
+  timeScale: 1,
+  underground: false,
+  observed: null,
   fps: 60,
   settings: defaultSettings,
   pending: [],
@@ -162,6 +178,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       started: true,
       helpOpen: true,
       tactical: false,
+      underground: false,
+      observed: null,
       selectedIds: [],
       selectionBox: null,
       orderMarker: null,
@@ -177,7 +195,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     )
       return;
     const world = structuredClone(state.world);
-    stepWorld(world, state.pending);
+    for (let index = 0; index < state.timeScale; index += 1)
+      stepWorld(world, index === 0 ? state.pending : []);
     const alive = new Set(
       world.agents.filter((agent) => agent.alive).map((agent) => agent.id),
     );
@@ -307,6 +326,73 @@ export const useGameStore = create<GameStore>((set, get) => ({
       signalType:
         unlocked[(unlocked.indexOf(signalType) + 1) % unlocked.length] ??
         "forage",
+    });
+  },
+  setTimeScale: (timeScale) =>
+    set((state) => ({
+      timeScale,
+      world:
+        timeScale > 1 && state.world.tutorialStep === 5
+          ? { ...state.world, tutorialStep: 6 }
+          : state.world,
+    })),
+  setUnderground: (underground) =>
+    set((state) => ({
+      underground,
+      world:
+        underground && state.world.tutorialStep === 6
+          ? { ...state.world, tutorialStep: 7 }
+          : state.world,
+    })),
+  inspect: (kind, id) =>
+    set((state) => ({
+      observed: { kind, id },
+      world:
+        state.world.tutorialStep === 8
+          ? { ...state.world, tutorialStep: 9 }
+          : state.world,
+    })),
+  clearInspection: () => set({ observed: null }),
+  attackObserved: () => {
+    const state = get();
+    if (state.observed?.kind !== "spider") return;
+    const ids = commandableIds(state);
+    if (!ids.length) return;
+    set({
+      pending: [
+        ...state.pending,
+        ...commandsFor(state, ids, "ATTACK", { targetId: state.observed.id }),
+      ],
+    });
+  },
+  retreatSelected: () => {
+    const state = get();
+    const ids = commandableIds(state);
+    if (!ids.length) return;
+    set({
+      pending: [...state.pending, ...commandsFor(state, ids, "RETREAT", {})],
+    });
+  },
+  expandNest: (chamber) => {
+    const state = get();
+    const entityId = state.world.playerAgentId;
+    set({
+      pending: [
+        ...state.pending,
+        ...commandsFor(state, [entityId], "EXPAND_NEST", { chamber }),
+      ],
+    });
+  },
+  setColonyPriority: (priority) => {
+    const state = get();
+    const entityId = state.world.playerAgentId;
+    set({
+      pending: [
+        ...state.pending,
+        ...commandsFor(state, [entityId], "SET_COLONY_PRIORITY", {
+          priority,
+        }),
+      ],
     });
   },
   setFps: (fps) => set({ fps }),

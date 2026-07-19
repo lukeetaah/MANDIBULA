@@ -407,7 +407,8 @@ button {
   color: #e2e7d3;
 }
 .top-actions {
-  width: 260px;
+  width: auto;
+  min-width: 420px;
   display: flex;
   justify-content: flex-end;
   gap: 6px;
@@ -426,6 +427,24 @@ button {
 .top-actions button:hover {
   border-color: rgba(199, 232, 106, 0.48);
   color: #fff;
+}
+.top-actions button.active {
+  border-color: var(--lichen);
+  color: var(--lichen);
+  background: rgba(199, 232, 106, 0.12);
+}
+.speed-control {
+  display: flex;
+  gap: 2px;
+  padding-right: 7px;
+  margin-right: 1px;
+  border-right: 1px solid var(--line);
+}
+.speed-control button {
+  min-width: 29px;
+  padding: 0 6px;
+  font-family: "Barlow Condensed";
+  font-size: 11px;
 }
 
 .mission-card {
@@ -580,6 +599,201 @@ button {
 .tutorial-beacon.step-5::after,
 .tutorial-beacon.step-5 .tutorial-track i.done {
   background: var(--cyan);
+}
+
+.nest-console,
+.ecology-dossier {
+  position: absolute;
+  right: 20px;
+  top: 78px;
+  width: 390px;
+  padding: 15px;
+  background: linear-gradient(
+    145deg,
+    rgba(20, 14, 10, 0.96),
+    rgba(34, 25, 17, 0.88)
+  );
+  border: 1px solid rgba(216, 176, 105, 0.28);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+.nest-console header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.nest-console header small,
+.ecology-dossier > small {
+  color: var(--amber);
+  font-size: 7px;
+  letter-spacing: 0.15em;
+}
+.nest-console h2,
+.ecology-dossier h2 {
+  margin: 5px 0 0;
+  font: 600 22px/1 "Barlow Condensed";
+}
+.nest-console header button,
+.dossier-close {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: #b8ae99;
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.nest-vitals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 14px 0 10px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.nest-vitals span {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  background: #211912;
+  color: #8f8779;
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+.nest-vitals b {
+  color: #d9c38c;
+}
+.chamber-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.chamber-grid button {
+  min-height: 105px;
+  padding: 10px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  text-align: left;
+  border: 1px solid rgba(216, 176, 105, 0.18);
+  background: rgba(216, 176, 105, 0.035);
+  cursor: pointer;
+}
+.chamber-grid button:hover:not(:disabled) {
+  border-color: rgba(216, 176, 105, 0.55);
+  transform: translateY(-1px);
+}
+.chamber-grid button:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+.chamber-grid small {
+  color: #8e826f;
+  font-size: 6px;
+  letter-spacing: 0.12em;
+}
+.chamber-grid strong {
+  color: #e4d7ba;
+  font: 600 13px/1 "Barlow Condensed";
+}
+.chamber-grid span {
+  color: #8e897c;
+  font-size: 7px;
+  line-height: 1.35;
+}
+.chamber-grid b {
+  margin-top: 4px;
+  color: var(--amber);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+.priority-strip {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.priority-strip > small {
+  grid-column: 1 / -1;
+  margin-bottom: 3px;
+  color: #817869;
+  font-size: 6px;
+  letter-spacing: 0.12em;
+}
+.priority-strip button,
+.dossier-actions button {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+  color: #aaa392;
+  font-size: 7px;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+.priority-strip button.active {
+  color: var(--lichen);
+  border-color: rgba(199, 232, 106, 0.48);
+  background: rgba(199, 232, 106, 0.08);
+}
+.ecology-dossier {
+  width: 318px;
+  border-color: rgba(101, 216, 207, 0.3);
+}
+.dossier-close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 25px;
+  height: 25px;
+  font-size: 15px;
+}
+.ecology-dossier p {
+  margin: 10px 0 12px;
+  color: #9da696;
+  font-size: 8px;
+  line-height: 1.5;
+}
+.dossier-role {
+  display: block;
+  margin-top: 5px;
+  color: var(--cyan);
+  font-size: 7px;
+  letter-spacing: 0.13em;
+}
+.dossier-functions {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.dossier-functions > span {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  color: #858e7e;
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+.dossier-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 10px;
+}
+.dossier-actions button:first-child {
+  color: var(--cyan);
+  border-color: rgba(101, 216, 207, 0.3);
+}
+.dossier-actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.hud.is-underground .selection-panel,
+.hud.is-underground .command-dock,
+.hud.is-underground .minimap,
+.hud.is-underground .camera-hint {
+  display: none;
 }
 
 .selection-panel {

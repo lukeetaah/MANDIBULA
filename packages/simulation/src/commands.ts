@@ -63,6 +63,18 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("FORM_EXPEDITION"),
     payload: z.object({ position: vec2 }),
   }),
+  base.extend({
+    type: z.literal("EXPAND_NEST"),
+    payload: z.object({
+      chamber: z.enum(["fungus", "nursery", "ventilation", "waste"]),
+    }),
+  }),
+  base.extend({
+    type: z.literal("SET_COLONY_PRIORITY"),
+    payload: z.object({
+      priority: z.enum(["forage", "brood", "excavate", "defend"]),
+    }),
+  }),
   base.extend({ type: z.literal("RETURN_TO_NEST"), payload: z.object({}) }),
 ]);
 

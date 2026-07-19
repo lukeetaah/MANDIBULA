@@ -7,8 +7,15 @@ export type FactionId =
 export type AgentKind =
   "ant" | "wasp" | "bumblebee" | "termite" | "fly" | "beetle";
 export type AgentTask =
-  "idle" | "move" | "forage" | "return" | "flee" | "defend" | "sealed";
-export type AgentOrder = "autonomous" | "move" | "gather" | "return";
+  | "idle"
+  | "move"
+  | "forage"
+  | "return"
+  | "flee"
+  | "defend"
+  | "attack"
+  | "sealed";
+export type AgentOrder = "autonomous" | "move" | "gather" | "return" | "attack";
 export type PheromoneType = "forage" | "alarm" | "home" | "avoid" | "recruit";
 export type SpiderGuild = "ground-runner" | "orb-weaver";
 export type SpiderState =
@@ -23,6 +30,17 @@ export type SpiderState =
   | "retreat"
   | "relocate";
 export type MatchStatus = "playing" | "victory" | "defeat";
+export type NestChamberType = "fungus" | "nursery" | "ventilation" | "waste";
+export type ColonyPriority = "forage" | "brood" | "excavate" | "defend";
+
+export interface NestState {
+  chambers: Record<NestChamberType, number>;
+  moisture: number;
+  hygiene: number;
+  ventilation: number;
+  wasteLoad: number;
+  thatchIntegrity: number;
+}
 
 export interface Agent {
   id: number;
@@ -136,6 +154,9 @@ export interface WorldState {
   rivalBiomass: number;
   fungusHealth: number;
   broodHealth: number;
+  seasonPhase: 1 | 2 | 3;
+  colonyPriority: ColonyPriority;
+  nest: NestState;
   tutorialStep: number;
   agents: Agent[];
   resources: ResourcePatch[];
@@ -164,6 +185,10 @@ export interface SimEvent {
     | "alliance-created"
     | "termite-sealed"
     | "bombus-rerouted"
+    | "pollination"
+    | "nest-expanded"
+    | "priority-changed"
+    | "phase-changed"
     | "match-ended";
   entityId?: number;
   message: string;
@@ -182,6 +207,12 @@ export interface PositionPayload {
 export interface TargetPayload {
   targetId: number;
 }
+export interface NestPayload {
+  chamber: NestChamberType;
+}
+export interface PriorityPayload {
+  priority: ColonyPriority;
+}
 export type CommandType =
   | "MOVE"
   | "INTERACT"
@@ -197,6 +228,8 @@ export type CommandType =
   | "CANCEL_SIGNAL"
   | "ASSIGN_PRIORITY"
   | "FORM_EXPEDITION"
+  | "EXPAND_NEST"
+  | "SET_COLONY_PRIORITY"
   | "RETURN_TO_NEST";
 
 export interface SimCommand {
@@ -208,5 +241,10 @@ export interface SimCommand {
   sequence: number;
   type: CommandType;
   payload:
-    MovePayload | PositionPayload | TargetPayload | Record<string, never>;
+    | MovePayload
+    | PositionPayload
+    | TargetPayload
+    | NestPayload
+    | PriorityPayload
+    | Record<string, never>;
 }

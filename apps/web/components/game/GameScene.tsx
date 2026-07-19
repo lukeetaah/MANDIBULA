@@ -107,9 +107,12 @@ function AntColony({ agents }: { agents: Agent[] }) {
     const scale = new THREE.Vector3();
     const color = new THREE.Color();
     agents.forEach((agent, index) => {
+      const atMound =
+        agent.faction === "acromyrmex" &&
+        Math.hypot(agent.position.x, agent.position.z) < 4.8;
       position.set(
         agent.position.x,
-        agent.alive ? 0.18 : 0.07,
+        agent.alive ? (atMound ? 0.78 : 0.18) : 0.07,
         agent.position.z,
       );
       quaternion.setFromEuler(
@@ -177,7 +180,13 @@ function AntColony({ agents }: { agents: Agent[] }) {
           <mesh
             key={`load-${agent.id}`}
             castShadow
-            position={[agent.position.x, 0.49, agent.position.z]}
+            position={[
+              agent.position.x,
+              Math.hypot(agent.position.x, agent.position.z) < 4.8
+                ? 1.08
+                : 0.49,
+              agent.position.z,
+            ]}
             rotation={[0.08, 0.35, 0.15]}
           >
             <circleGeometry args={[0.38, 7]} />
@@ -193,6 +202,8 @@ function AntColony({ agents }: { agents: Agent[] }) {
 }
 
 function Flyer({ agent }: { agent: Agent }) {
+  const inspect = useGameStore((state) => state.inspect);
+  const observed = useGameStore((state) => state.observed);
   const color = factionColors[agent.faction];
   const y =
     agent.kind === "termite" ? 0.18 : 2.8 + Math.sin(agent.id * 2.1) * 0.6;
@@ -201,7 +212,16 @@ function Flyer({ agent }: { agent: Agent }) {
       position={[agent.position.x, y, agent.position.z]}
       rotation={[0, Math.atan2(agent.velocity.x, agent.velocity.z), 0]}
       scale={agent.kind === "bumblebee" ? 0.62 : 0.42}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        inspect("agent", agent.id);
+      }}
     >
+      <mesh>
+        <sphereGeometry args={[1.45, 8, 6]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       <mesh castShadow scale={[0.7, 0.8, 1.4]}>
         <sphereGeometry args={[0.35, 8, 6]} />
         <meshStandardMaterial color={color} roughness={0.75} />
@@ -228,11 +248,19 @@ function Flyer({ agent }: { agent: Agent }) {
           </mesh>
         </>
       )}
+      {observed?.kind === "agent" && observed.id === agent.id && (
+        <mesh position={[0, -0.25, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.72, 0.84, 28]} />
+          <meshBasicMaterial color="#65d8cf" transparent opacity={0.9} />
+        </mesh>
+      )}
     </group>
   );
 }
 
 function SpiderBody({ spider }: { spider: Spider }) {
+  const inspect = useGameStore((state) => state.inspect);
+  const observed = useGameStore((state) => state.observed);
   if (!spider.visible) return null;
   const scale = spider.dominant
     ? 2.2
@@ -248,6 +276,11 @@ function SpiderBody({ spider }: { spider: Spider }) {
     <group
       position={[spider.position.x, 0.28 * scale, spider.position.z]}
       scale={scale}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        inspect("spider", spider.id);
+      }}
     >
       <mesh castShadow position={[0, 0, 0.24]} scale={[0.8, 0.65, 1]}>
         <sphereGeometry args={[0.38, 10, 7]} />
@@ -277,6 +310,12 @@ function SpiderBody({ spider }: { spider: Spider }) {
         intensity={spider.dominant ? 0.5 : 0.15}
         distance={4}
       />
+      {observed?.kind === "spider" && observed.id === spider.id && (
+        <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.9, 1.04, 32]} />
+          <meshBasicMaterial color="#f06b4f" transparent opacity={0.92} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -312,8 +351,10 @@ function ProceduralTerrain() {
     plane.rotateX(-Math.PI / 2);
     const positions = plane.getAttribute("position");
     const colors: number[] = [];
-    const dark = new THREE.Color("#4f4228");
-    const light = new THREE.Color("#80704a");
+    const steppe = new THREE.Color("#766747");
+    const gravel = new THREE.Color("#a28d62");
+    const mallin = new THREE.Color("#536845");
+    const basalt = new THREE.Color("#3f423a");
     for (let index = 0; index < positions.count; index += 1) {
       const x = positions.getX(index);
       const z = positions.getZ(index);
@@ -321,11 +362,19 @@ function ProceduralTerrain() {
         (Math.sin(x * 0.29) + Math.cos(z * 0.23) + Math.sin((x + z) * 0.11)) /
           6 +
         0.5;
-      const color = dark
-        .clone()
-        .lerp(light, THREE.MathUtils.clamp(noise, 0, 1));
+      const wetAxis = 8 + Math.sin(x * 0.075) * 5;
+      const wetness = Math.max(0, 1 - Math.abs(z - wetAxis) / 9);
+      const basaltRise =
+        Math.exp(-((x + 31) ** 2 + (z + 20) ** 2) / 230) +
+        Math.exp(-((x - 37) ** 2 + (z + 27) ** 2) / 150);
+      const height = (noise - 0.5) * 0.18 + basaltRise * 0.44 - wetness * 0.08;
+      positions.setY(index, height);
+      const color = steppe.clone().lerp(gravel, noise * 0.55);
+      if (wetness > 0.18) color.lerp(mallin, wetness * 0.72);
+      if (basaltRise > 0.3) color.lerp(basalt, Math.min(0.86, basaltRise));
       colors.push(color.r, color.g, color.b);
     }
+    plane.computeVertexNormals();
     plane.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     return plane;
   }, []);
@@ -338,7 +387,8 @@ function ProceduralTerrain() {
     for (let index = 0; index < 180; index += 1) {
       const x = ((index * 47) % 113) - 56;
       const z = ((index * 71) % 97) - 48;
-      const height = 0.7 + (index % 7) * 0.18;
+      const mallinBand = Math.abs(z - (8 + Math.sin(x * 0.075) * 5)) < 10;
+      const height = (mallinBand ? 1.05 : 0.62) + (index % 7) * 0.16;
       position.set(x, height / 2, z);
       quaternion.setFromEuler(
         new THREE.Euler(
@@ -370,6 +420,37 @@ function ProceduralTerrain() {
       <mesh geometry={geometry} receiveShadow>
         <meshStandardMaterial vertexColors roughness={1} metalness={0} />
       </mesh>
+      {[0, 1, 2, 3].map((ring) => (
+        <Line
+          key={`contour-${ring}`}
+          points={Array.from({ length: 49 }, (_, index) => {
+            const angle = (index / 48) * Math.PI * 2;
+            return [
+              -31 + Math.cos(angle) * (7 + ring * 2.1),
+              0.05 + ring * 0.015,
+              -20 + Math.sin(angle) * (4.5 + ring * 1.35),
+            ] as [number, number, number];
+          })}
+          color="#d1bd88"
+          lineWidth={0.45}
+          transparent
+          opacity={0.2}
+        />
+      ))}
+      <Line
+        points={Array.from({ length: 33 }, (_, index) => {
+          const x = -62 + index * 4;
+          return [x, 0.065, 8 + Math.sin(x * 0.075) * 5] as [
+            number,
+            number,
+            number,
+          ];
+        })}
+        color="#92ad76"
+        lineWidth={3}
+        transparent
+        opacity={0.22}
+      />
       {[
         [-25, -15, 14, "#625635"],
         [22, 16, 18, "#71603a"],
@@ -414,6 +495,18 @@ function ProceduralTerrain() {
 
 function Nest() {
   const trailAngles = [-0.2, 0.85, 2.15, 3.55, 4.7];
+  const moundLobes = [
+    [-1.5, 0.2, 2.2, 1.3],
+    [0.1, 0.45, 2.8, 1.6],
+    [1.7, -0.4, 2.1, 1.25],
+    [-0.7, -1.35, 2.4, 1.1],
+    [0.6, 1.45, 2.25, 1.15],
+  ] as const;
+  const entrances = [
+    [-2.35, 0.35, 0.42],
+    [1.7, 1.15, 0.36],
+    [1.9, -1.25, 0.32],
+  ] as const;
   return (
     <group>
       {trailAngles.map((angle) => (
@@ -430,41 +523,160 @@ function Nest() {
           opacity={0.34}
         />
       ))}
-      <mesh
-        position={[0, 0.12, 0]}
-        rotation={[Math.PI / 2, 0, 0]}
-        receiveShadow
-      >
-        <torusGeometry args={[3.15, 0.72, 8, 48]} />
-        <meshStandardMaterial color="#392e20" roughness={1} />
+      {moundLobes.map(([x, z, width, depth], index) => (
+        <mesh
+          key={`mound-${index}`}
+          position={[x, 0.18 + (index % 2) * 0.08, z]}
+          rotation={[0, index * 0.74, 0]}
+          scale={[width, 0.55 + (index % 3) * 0.08, depth]}
+          receiveShadow
+        >
+          <dodecahedronGeometry args={[1, 1]} />
+          <meshStandardMaterial
+            color={index % 2 ? "#51452f" : "#5c4d31"}
+            roughness={1}
+          />
+        </mesh>
+      ))}
+      {Array.from({ length: 26 }, (_, index) => {
+        const angle = index * 2.399963;
+        const radius = 0.7 + (index % 7) * 0.42;
+        return (
+          <mesh
+            key={`thatch-${index}`}
+            position={[
+              Math.cos(angle) * radius,
+              0.55 + (index % 5) * 0.055,
+              Math.sin(angle) * radius * 0.82,
+            ]}
+            rotation={[0.2, angle, (index % 3) * 0.18]}
+          >
+            <boxGeometry args={[0.08, 0.055, 0.7 + (index % 4) * 0.12]} />
+            <meshStandardMaterial color="#88733e" roughness={1} />
+          </mesh>
+        );
+      })}
+      {entrances.map(([x, z, size], index) => (
+        <mesh
+          key={`entrance-${index}`}
+          position={[x, 0.66, z]}
+          rotation={[-Math.PI / 2, 0, index * 0.7]}
+        >
+          <circleGeometry args={[size, 18]} />
+          <meshStandardMaterial color="#090806" roughness={1} />
+        </mesh>
+      ))}
+      <pointLight
+        position={[0, 1.3, 0]}
+        color="#b9d77a"
+        intensity={0.32}
+        distance={8}
+      />
+    </group>
+  );
+}
+
+function UndergroundNest() {
+  const nest = useGameStore((state) => state.world.nest);
+  const chambers = [
+    { key: "fungus", at: [0, 0] as const, color: "#9bb968", size: 3.1 },
+    { key: "nursery", at: [7, 2] as const, color: "#d7b982", size: 2.25 },
+    {
+      key: "ventilation",
+      at: [-7, 3] as const,
+      color: "#7ab7aa",
+      size: 2,
+    },
+    { key: "waste", at: [-5, -5] as const, color: "#9a6651", size: 1.8 },
+  ] as const;
+  return (
+    <group>
+      <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[18, 64]} />
+        <meshStandardMaterial color="#241b14" roughness={1} />
       </mesh>
-      <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[2.45, 48]} />
-        <meshStandardMaterial color="#100e0a" roughness={1} />
-      </mesh>
-      <mesh position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.45, 2.1, 48]} />
-        <meshBasicMaterial
-          color="#91b85c"
+      {chambers.slice(1).map((chamber) => (
+        <Line
+          key={`tunnel-${chamber.key}`}
+          points={[
+            [0, 0.18, 0],
+            [chamber.at[0] * 0.52, 0.2, chamber.at[1] * 0.4],
+            [chamber.at[0], 0.18, chamber.at[1]],
+          ]}
+          color="#bc9662"
+          lineWidth={12 + nest.chambers[chamber.key] * 2}
           transparent
-          opacity={0.18}
-          depthWrite={false}
+          opacity={0.3}
         />
-      </mesh>
-      <mesh position={[0, 0.2, 0]}>
-        <sphereGeometry args={[0.7, 16, 8]} />
+      ))}
+      {chambers.map((chamber) => {
+        const level = nest.chambers[chamber.key];
+        const size = chamber.size + level * 0.38;
+        return (
+          <group key={chamber.key} position={[chamber.at[0], 0, chamber.at[1]]}>
+            <mesh scale={[size, 0.56, size * 0.75]}>
+              <sphereGeometry args={[1, 24, 14]} />
+              <meshStandardMaterial
+                color="#33251b"
+                emissive={chamber.color}
+                emissiveIntensity={0.1 + level * 0.035}
+                roughness={1}
+              />
+            </mesh>
+            <Line
+              points={Array.from({ length: 33 }, (_, index) => {
+                const angle = (index / 32) * Math.PI * 2;
+                return [
+                  Math.cos(angle) * size * 0.92,
+                  0.43,
+                  Math.sin(angle) * size * 0.68,
+                ] as [number, number, number];
+              })}
+              color={chamber.color}
+              lineWidth={1.2}
+              transparent
+              opacity={0.54}
+            />
+            {Array.from({ length: 5 + level * 3 }, (_, index) => {
+              const angle = index * 2.399;
+              return (
+                <mesh
+                  key={index}
+                  position={[
+                    Math.cos(angle) * size * 0.42,
+                    0.48 + (index % 2) * 0.08,
+                    Math.sin(angle) * size * 0.33,
+                  ]}
+                  scale={
+                    chamber.key === "nursery"
+                      ? [0.2, 0.08, 0.36]
+                      : chamber.key === "ventilation"
+                        ? [0.1, 0.1, 0.1]
+                        : [0.24, 0.12, 0.2]
+                  }
+                >
+                  <sphereGeometry args={[1, 10, 7]} />
+                  <meshStandardMaterial color={chamber.color} roughness={0.9} />
+                </mesh>
+              );
+            })}
+          </group>
+        );
+      })}
+      <mesh position={[4.7, 0.05, -5.2]} scale={[2.3, 0.7, 1.7]}>
+        <sphereGeometry args={[1, 20, 12]} />
         <meshStandardMaterial
-          color="#809a57"
-          emissive="#5f763d"
-          emissiveIntensity={0.35}
-          roughness={0.9}
+          color="#2c2018"
+          emissive="#71573a"
+          emissiveIntensity={0.13}
+          roughness={1}
         />
       </mesh>
       <pointLight
-        position={[0, 1, 0]}
-        color="#b9d77a"
-        intensity={0.65}
-        distance={8}
+        position={[0, 5, 0]}
+        color="#d3b06e"
+        intensity={5}
+        distance={30}
       />
     </group>
   );
@@ -943,39 +1155,56 @@ function RTSInteractionPlane() {
 export function GameScene() {
   const world = useGameStore((state) => state.world);
   const tactical = useGameStore((state) => state.tactical);
+  const underground = useGameStore((state) => state.underground);
   return (
     <>
-      <color attach="background" args={[tactical ? "#18231d" : "#78908a"]} />
-      <fog attach="fog" args={[tactical ? "#18231d" : "#73847c", 46, 105]} />
-      <ambientLight intensity={tactical ? 1.25 : 1.65} color="#d9dfc0" />
-      <hemisphereLight intensity={0.8} color="#c8ded1" groundColor="#5c452b" />
+      <color
+        attach="background"
+        args={[underground ? "#100c09" : tactical ? "#18231d" : "#78908a"]}
+      />
+      <fog
+        attach="fog"
+        args={[
+          underground ? "#100c09" : tactical ? "#18231d" : "#73847c",
+          46,
+          105,
+        ]}
+      />
+      <ambientLight intensity={tactical ? 1.08 : 1.28} color="#d9dfc0" />
+      <hemisphereLight intensity={0.65} color="#c8ded1" groundColor="#5c452b" />
       <directionalLight
-        intensity={3.2}
-        color="#ffd390"
+        intensity={2.05}
+        color="#ffe1ae"
         position={[-32, 46, 22]}
       />
-      <ProceduralTerrain />
-      <Nest />
-      <ResourceNodes />
-      <Webs />
-      <AntColony
-        agents={world.agents.filter((agent) => agent.kind === "ant")}
-      />
-      {world.agents
-        .filter((agent) => agent.kind !== "ant")
-        .map((agent) => (
-          <Flyer key={agent.id} agent={agent} />
-        ))}
-      {world.spiders.map((spider) => (
-        <SpiderBody key={spider.id} spider={spider} />
-      ))}
-      {(tactical || world.tutorialStep >= 4) &&
-        world.pheromones.map((field) => (
-          <Pheromone key={field.id} field={field} />
-        ))}
-      <SelectionPaths />
-      <OrderMarker />
-      <RTSInteractionPlane />
+      {underground ? (
+        <UndergroundNest />
+      ) : (
+        <>
+          <ProceduralTerrain />
+          <Nest />
+          <ResourceNodes />
+          <Webs />
+          <AntColony
+            agents={world.agents.filter((agent) => agent.kind === "ant")}
+          />
+          {world.agents
+            .filter((agent) => agent.kind !== "ant")
+            .map((agent) => (
+              <Flyer key={agent.id} agent={agent} />
+            ))}
+          {world.spiders.map((spider) => (
+            <SpiderBody key={spider.id} spider={spider} />
+          ))}
+          {(tactical || world.tutorialStep >= 4) &&
+            world.pheromones.map((field) => (
+              <Pheromone key={field.id} field={field} />
+            ))}
+          <SelectionPaths />
+          <OrderMarker />
+          <RTSInteractionPlane />
+        </>
+      )}
       <CameraRig />
     </>
   );

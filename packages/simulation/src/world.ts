@@ -121,6 +121,16 @@ export function createWorld(seed = 0x5eed1234): WorldState {
     rivalBiomass: 0,
     fungusHealth: 0.72,
     broodHealth: 0.8,
+    seasonPhase: 1,
+    colonyPriority: "forage",
+    nest: {
+      chambers: { fungus: 1, nursery: 1, ventilation: 1, waste: 0 },
+      moisture: 0.66,
+      hygiene: 0.82,
+      ventilation: 0.54,
+      wasteLoad: 0.12,
+      thatchIntegrity: 0.88,
+    },
     tutorialStep: 0,
     agents: [],
     resources: [],
@@ -478,15 +488,45 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
       const spider = world.spiders.find(
         (candidate) => candidate.id === targetId && candidate.visible,
       );
-      if (spider && distanceSq(agent.position, spider.position) < 8) {
-        spider.agitation += 0.12;
-        spider.wounds += spider.dominant ? 0.006 : 0.025;
-        spider.mobility = clamp(
-          spider.mobility - (spider.dominant ? 0.002 : 0.008),
-          0.2,
-          1,
+      if (spider) {
+        agent.order = "attack";
+        agent.task = "attack";
+        agent.targetId = spider.id;
+        agent.destination = { ...spider.position };
+      }
+    } else if (
+      command.type === "EXPAND_NEST" &&
+      "chamber" in command.payload &&
+      agent.faction === "acromyrmex"
+    ) {
+      const chamber = command.payload.chamber;
+      const level = world.nest.chambers[chamber];
+      const cost =
+        world.colonyPriority === "excavate" ? 3 + level * 2 : 4 + level * 3;
+      if (level < 3 && world.colonyBiomass >= cost) {
+        world.colonyBiomass -= cost;
+        world.nest.chambers[chamber] += 1;
+        world.mandate += 0.8;
+        world.tutorialStep = Math.max(world.tutorialStep, 8);
+        event(
+          world,
+          "nest-expanded",
+          `La red excavó una cámara de ${chamber}`,
+          agent.id,
         );
       }
+    } else if (
+      command.type === "SET_COLONY_PRIORITY" &&
+      "priority" in command.payload &&
+      agent.faction === "acromyrmex"
+    ) {
+      world.colonyPriority = command.payload.priority;
+      event(
+        world,
+        "priority-changed",
+        `Prioridad colectiva: ${command.payload.priority}`,
+        agent.id,
+      );
     }
   }
 }
@@ -577,6 +617,36 @@ function updateAnt(agent: Agent, world: WorldState) {
       nearbySpider.agitation += 0.0015;
       nearbySpider.wounds += 0.0007;
       nearbySpider.mobility = clamp(nearbySpider.mobility - 0.00012, 0.2, 1);
+      agent.position.x += agent.velocity.x;
+      agent.position.z += agent.velocity.z;
+      return;
+    }
+  }
+  if (agent.order === "attack" && agent.targetId !== null) {
+    const target = world.spiders.find(
+      (spider) => spider.id === agent.targetId && spider.visible,
+    );
+    if (!target) {
+      agent.order = "autonomous";
+      agent.targetId = null;
+      agent.destination = null;
+      agent.task = "idle";
+    } else {
+      agent.destination = { ...target.position };
+      agent.task = "attack";
+      const targetDistance = distanceSq(agent.position, target.position);
+      if (targetDistance > 2.8) steer(agent, target.position, speed * 1.18);
+      else {
+        target.agitation = clamp(target.agitation + 0.005, 0, 1);
+        const defenseFocus = world.colonyPriority === "defend" ? 1.28 : 1;
+        target.wounds += (target.dominant ? 0.00018 : 0.0012) * defenseFocus;
+        target.mobility = clamp(
+          target.mobility - (target.dominant ? 0.00004 : 0.00018),
+          0.2,
+          1,
+        );
+        agent.energy = clamp(agent.energy - 0.0014, 0.15, 1);
+      }
       agent.position.x += agent.velocity.x;
       agent.position.z += agent.velocity.z;
       return;
@@ -736,6 +806,31 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
           agent.id,
         );
       return;
+    }
+  }
+  if (agent.kind === "bumblebee") {
+    const flower = world.resources
+      .filter((resource) => resource.kind === "nectar" && resource.amount > 0)
+      .sort(
+        (a, b) =>
+          distanceSq(a.position, agent.position) -
+            distanceSq(b.position, agent.position) || a.id - b.id,
+      )[0];
+    if (flower) {
+      const circuit = {
+        x: flower.position.x + Math.sin(world.tick * 0.018 + agent.id) * 3.2,
+        z: flower.position.z + Math.cos(world.tick * 0.016 + agent.id) * 2.4,
+      };
+      steer(agent, circuit, 0.13);
+      if ((world.tick + agent.id) % 420 === 0 && flower.amount < 64) {
+        flower.amount += 1;
+        event(
+          world,
+          "pollination",
+          "Bombus sostuvo el circuito floral del mallín",
+          agent.id,
+        );
+      }
     }
   }
   const blocked =
@@ -1046,27 +1141,99 @@ function endMatch(
 }
 
 function updateEconomy(world: WorldState) {
+  const chamberTotal = Object.values(world.nest.chambers).reduce(
+    (sum, level) => sum + level,
+    0,
+  );
+  const livingWorkers = world.agents.filter(
+    (agent) =>
+      agent.alive && agent.kind === "ant" && agent.faction === "acromyrmex",
+  ).length;
+  const ventilationTarget = clamp(
+    0.32 + world.nest.chambers.ventilation * 0.18,
+    0,
+    1,
+  );
+  world.nest.ventilation +=
+    (ventilationTarget - world.nest.ventilation) * 0.0008;
+  world.nest.moisture = clamp(
+    world.nest.moisture +
+      world.rain * 0.0008 -
+      world.nest.ventilation * 0.00011,
+    0.18,
+    0.94,
+  );
+  world.nest.wasteLoad = clamp(
+    world.nest.wasteLoad +
+      0.000018 * livingWorkers -
+      world.nest.chambers.waste * 0.00034,
+    0,
+    1,
+  );
+  world.nest.hygiene = clamp(
+    world.nest.hygiene +
+      world.nest.chambers.waste * 0.00012 -
+      world.nest.wasteLoad * 0.00017,
+    0,
+    1,
+  );
+  const thermalStress =
+    Math.abs(world.temperature - 18) / (20 + world.nest.ventilation * 14);
   world.fungusHealth = clamp(
-    world.fungusHealth - 0.000035 * (1 + Math.abs(world.temperature - 18) / 20),
+    world.fungusHealth -
+      0.00003 * (1 + thermalStress) -
+      world.nest.wasteLoad * 0.000035 +
+      world.nest.chambers.fungus * 0.000012 +
+      (world.colonyPriority === "forage" ? 0.000025 : 0),
     0,
     1,
   );
   world.broodHealth = clamp(
-    world.broodHealth + (world.fungusHealth - 0.5) * 0.00015,
+    world.broodHealth +
+      (world.fungusHealth - 0.5) * 0.00012 +
+      world.nest.chambers.nursery * 0.000018 +
+      (world.colonyPriority === "brood" ? 0.000035 : 0) -
+      (1 - world.nest.hygiene) * 0.000045,
     0,
     1,
   );
-  if (world.colonyBiomass >= 24 && world.fungusHealth >= 0.45)
+  if (world.seasonPhase === 1 && world.colonyBiomass >= 18) {
+    world.seasonPhase = 2;
+    event(
+      world,
+      "phase-changed",
+      "La colonia deja de resistir: ahora debe convertirse en hogar",
+    );
+  }
+  if (
+    world.seasonPhase === 2 &&
+    chamberTotal >= 7 &&
+    world.colonyBiomass >= 28 &&
+    world.broodHealth >= 0.62
+  ) {
+    world.seasonPhase = 3;
+    event(
+      world,
+      "phase-changed",
+      "La red madura; ahora debe controlar territorio y depredadores",
+    );
+  }
+  if (
+    world.seasonPhase === 3 &&
+    world.colonyBiomass >= 52 &&
+    world.fungusHealth >= 0.52 &&
+    world.nest.hygiene >= 0.5
+  )
     endMatch(
       world,
       "victory",
-      "El cultivo quedó abastecido antes del cambio térmico",
+      "La colonia llega al invierno como un organismo completo",
     );
-  if (world.rivalBiomass >= 26)
+  if (world.rivalBiomass >= 58)
     endMatch(world, "defeat", "La colonia rival dominó la red de recursos");
   if (world.fungusHealth <= 0.05)
     endMatch(world, "defeat", "El cultivo colapsó por falta de sustrato");
-  if (world.tick >= 9000)
+  if (world.tick >= 12000)
     endMatch(
       world,
       world.colonyBiomass > world.rivalBiomass ? "victory" : "defeat",

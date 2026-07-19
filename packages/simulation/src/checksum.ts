@@ -24,6 +24,9 @@ export function checksumWorld(world: WorldState): string {
     rivalBiomass: world.rivalBiomass,
     fungusHealth: Math.round(world.fungusHealth * 10000),
     broodHealth: Math.round(world.broodHealth * 10000),
+    seasonPhase: world.seasonPhase,
+    colonyPriority: world.colonyPriority,
+    nest: world.nest,
     agents: world.agents.map((agent) => [
       agent.id,
       agent.alive,
@@ -69,5 +72,15 @@ export function restoreSnapshot(snapshot: string): WorldState {
     !Array.isArray(parsed.agents)
   )
     throw new Error("Snapshot incompatible");
+  parsed.seasonPhase ??= 1;
+  parsed.colonyPriority ??= "forage";
+  parsed.nest ??= {
+    chambers: { fungus: 1, nursery: 1, ventilation: 1, waste: 0 },
+    moisture: 0.66,
+    hygiene: 0.82,
+    ventilation: 0.54,
+    wasteLoad: 0.12,
+    thatchIntegrity: 0.88,
+  };
   return parsed;
 }
