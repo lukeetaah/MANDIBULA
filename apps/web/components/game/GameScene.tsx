@@ -362,12 +362,21 @@ function CameraRig() {
 
   useEffect(() => {
     const element = gl.domElement;
+    const lockPointer = () => {
+      if (document.pointerLockElement !== element) {
+        void element.requestPointerLock();
+      }
+    };
     const onMove = (event: MouseEvent) => {
       if (document.pointerLockElement === element)
         setYaw((value) => value - event.movementX * 0.0022 * sensitivity);
     };
+    element.addEventListener("click", lockPointer);
     window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
+    return () => {
+      element.removeEventListener("click", lockPointer);
+      window.removeEventListener("mousemove", onMove);
+    };
   }, [gl, sensitivity, setYaw]);
 
   useFrame((_, delta) => {
