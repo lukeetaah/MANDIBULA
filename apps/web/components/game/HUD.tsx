@@ -76,8 +76,9 @@ const signalLabels = {
 const faunaProfiles = {
   wasp: {
     name: "VESPULA",
-    role: "CAZADORA AÉREA",
-    effect: "Hostiga arañas pequeñas y abandona combates costosos.",
+    role: "INTERCEPTORA AÉREA",
+    effect:
+      "Hostiga arañas pequeñas y puede interceptar obreras expuestas con carga.",
   },
   bumblebee: {
     name: "BOMBUS",
@@ -91,13 +92,15 @@ const faunaProfiles = {
   },
   fly: {
     name: "MOSCA DE ESTEPA",
-    role: "PRESA MÓVIL",
-    effect: "Su desaparición anticipa actividad de arañas tejedoras.",
+    role: "VECTOR DE RESIDUOS",
+    effect:
+      "Es presa de las tejedoras; con mala higiene alcanza los residuos y daña el cultivo.",
   },
   beetle: {
-    name: "ESCARABAJO",
-    role: "RECICLADOR TERRESTRE",
-    effect: "Compite por restos y delata corredores de caza.",
+    name: "ESCARABAJO CORREDOR",
+    role: "DEPREDADOR TERRESTRE",
+    effect:
+      "Persigue obreras aisladas a ras del suelo; una patrulla puede expulsarlo.",
   },
   ant: {
     name: "OTRA COLONIA",
@@ -448,6 +451,7 @@ export function HUD() {
   const cycleSignal = useGameStore((state) => state.cycleSignal);
   const setTimeScale = useGameStore((state) => state.setTimeScale);
   const setUnderground = useGameStore((state) => state.setUnderground);
+  const inspect = useGameStore((state) => state.inspect);
   const clearInspection = useGameStore((state) => state.clearInspection);
   const attackObserved = useGameStore((state) => state.attackObserved);
   const retreatSelected = useGameStore((state) => state.retreatSelected);
@@ -462,7 +466,6 @@ export function HUD() {
   const restart = useGameStore((state) => state.restart);
   const sound = useGameStore((state) => state.settings.sound);
   const subtitles = useGameStore((state) => state.settings.subtitles);
-  const setFps = useGameStore((state) => state.setFps);
   const selected = world.agents.filter((agent) =>
     selectedIds.includes(agent.id),
   );
@@ -473,24 +476,8 @@ export function HUD() {
   const latestEvent = world.eventLog[world.eventLog.length - 1];
   const tutorialItem =
     tutorial[Math.min(world.tutorialStep, tutorial.length - 1)]!;
-  const frame = useRef({ at: performance.now(), count: 0 });
 
   useAmbientSound(sound);
-  useEffect(() => {
-    let handle = 0;
-    const count = (now: number) => {
-      frame.current.count += 1;
-      if (now - frame.current.at >= 1000) {
-        setFps(
-          Math.round((frame.current.count * 1000) / (now - frame.current.at)),
-        );
-        frame.current = { at: now, count: 0 };
-      }
-      handle = requestAnimationFrame(count);
-    };
-    handle = requestAnimationFrame(count);
-    return () => cancelAnimationFrame(handle);
-  }, [setFps]);
 
   const danger = useMemo(() => {
     const watched = selected.length ? selected : colony.slice(0, 1);
@@ -596,10 +583,17 @@ export function HUD() {
             ))}
           </div>
           <button
-            className={underground ? "active" : ""}
+            className={`nest-access ${underground ? "active" : ""} ${
+              world.tutorialStep === 6 ? "is-called" : ""
+            }`}
             onClick={() => setUnderground(!underground)}
+            aria-label={
+              underground ? "Volver a superficie" : "Entrar al subsuelo"
+            }
           >
-            {underground ? "SUPERFICIE" : "SUBSUELO"}
+            <span aria-hidden="true">{underground ? "↑" : "↓"}</span>
+            <b>{underground ? "SUPERFICIE" : "SUBSUELO"}</b>
+            <small>B · {underground ? "MAPA" : "CÁMARAS"}</small>
           </button>
           <button onClick={() => setHelpOpen(true)}>GUÍA</button>
           <button
@@ -630,6 +624,14 @@ export function HUD() {
         <small>{tutorialItem.kicker}</small>
         <h3>{tutorialItem.title}</h3>
         <p>{tutorialItem.detail}</p>
+        {world.tutorialStep === 6 && (
+          <button
+            className="tutorial-action"
+            onClick={() => setUnderground(true)}
+          >
+            ABRIR SUBSUELO <b>B ↓</b>
+          </button>
+        )}
         <div className="tutorial-track">
           {tutorial.map((_, index) => (
             <i
@@ -772,18 +774,55 @@ export function HUD() {
                 <span>CONDUCTA · {observedAgent.task.toUpperCase()}</span>
               </div>
               <div className="dossier-actions">
-                <button
-                  disabled={!selected.length}
-                  onClick={() => issueMove(observedAgent.position)}
-                >
-                  LLEVAR PATRULLA
-                </button>
+                {(["wasp", "fly", "beetle"] as const).includes(
+                  observedAgent.kind as "wasp" | "fly" | "beetle",
+                ) ? (
+                  <button disabled={!selected.length} onClick={attackObserved}>
+                    AHUYENTAR CON {selected.length || "—"}
+                  </button>
+                ) : (
+                  <button
+                    disabled={!selected.length}
+                    onClick={() => issueMove(observedAgent.position)}
+                  >
+                    LLEVAR PATRULLA
+                  </button>
+                )}
                 <button disabled={!selected.length} onClick={retreatSelected}>
                   NO INTERFERIR
                 </button>
               </div>
             </>
           ) : null}
+        </section>
+      )}
+
+      {!underground && (
+        <section className="fauna-key" aria-label="Fauna activa">
+          <small>RED VIVA · CLIC PARA IDENTIFICAR</small>
+          {(["wasp", "bumblebee", "termite", "fly", "beetle"] as const).map(
+            (kind) => {
+              const population = world.agents.filter(
+                (agent) => agent.kind === kind && agent.alive,
+              );
+              const specimen = population[0];
+              return (
+                <button
+                  key={kind}
+                  className={`fauna-${kind}`}
+                  disabled={!specimen}
+                  onClick={() => specimen && inspect("agent", specimen.id)}
+                >
+                  <i />
+                  <span>
+                    <b>{faunaProfiles[kind].name}</b>
+                    <small>{faunaProfiles[kind].role}</small>
+                  </span>
+                  <em>{population.length}</em>
+                </button>
+              );
+            },
+          )}
         </section>
       )}
 
@@ -895,7 +934,7 @@ export function HUD() {
 
       <MiniMap />
       <div className="camera-hint">
-        WASD / BORDES <i /> RUEDA ZOOM <i /> BOTÓN CENTRAL ROTAR
+        WASD / BORDES <i /> RUEDA ZOOM <i /> B SUBSUELO <i /> BOTÓN CENTRAL ROTAR
       </div>
 
       {selectionBox && <div className="selection-box" style={selectionBox} />}

@@ -79,6 +79,7 @@ export default function GameClient() {
       <Canvas
         shadows={false}
         orthographic
+        frameloop="demand"
         dpr={1}
         camera={{ zoom: 28, near: 0.1, far: 240, position: [20, 27, 20] }}
         gl={{ antialias: false, powerPreference: "high-performance" }}

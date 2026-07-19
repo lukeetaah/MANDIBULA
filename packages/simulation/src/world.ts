@@ -488,11 +488,19 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
       const spider = world.spiders.find(
         (candidate) => candidate.id === targetId && candidate.visible,
       );
-      if (spider) {
+      const fauna = world.agents.find(
+        (candidate) =>
+          candidate.id === targetId &&
+          candidate.alive &&
+          candidate.kind !== "ant" &&
+          candidate.faction !== agent.faction,
+      );
+      const target = spider ?? fauna;
+      if (target) {
         agent.order = "attack";
         agent.task = "attack";
-        agent.targetId = spider.id;
-        agent.destination = { ...spider.position };
+        agent.targetId = target.id;
+        agent.destination = { ...target.position };
       }
     } else if (
       command.type === "EXPAND_NEST" &&
@@ -578,6 +586,38 @@ function bestPheromone(
     )[0];
 }
 
+function removeAgent(world: WorldState, agent: Agent, message: string) {
+  if (!agent.alive) return;
+  agent.alive = false;
+  agent.velocity = { x: 0, z: 0 };
+  agent.task = "idle";
+  agent.order = "autonomous";
+  agent.targetId = null;
+  agent.destination = null;
+  world.metrics.lossesByFaction[agent.faction] += 1;
+  event(world, "agent-died", message, agent.id);
+  if (!agent.controlled) return;
+  const successor = world.agents.find(
+    (candidate) =>
+      candidate.faction === "acromyrmex" &&
+      candidate.alive &&
+      !candidate.controlled,
+  );
+  if (successor) {
+    successor.controlled = true;
+    world.playerAgentId = successor.id;
+    world.mandate *= 0.72;
+    event(
+      world,
+      "succession",
+      "La memoria operativa pasa a otra obrera",
+      successor.id,
+    );
+  } else {
+    endMatch(world, "defeat", "La colonia ya no tiene obreras disponibles");
+  }
+}
+
 function updateAnt(agent: Agent, world: WorldState) {
   if (!agent.alive) return;
   const speed =
@@ -623,9 +663,17 @@ function updateAnt(agent: Agent, world: WorldState) {
     }
   }
   if (agent.order === "attack" && agent.targetId !== null) {
-    const target = world.spiders.find(
+    const spiderTarget = world.spiders.find(
       (spider) => spider.id === agent.targetId && spider.visible,
     );
+    const faunaTarget = world.agents.find(
+      (candidate) =>
+        candidate.id === agent.targetId &&
+        candidate.alive &&
+        candidate.kind !== "ant" &&
+        candidate.faction !== agent.faction,
+    );
+    const target = spiderTarget ?? faunaTarget;
     if (!target) {
       agent.order = "autonomous";
       agent.targetId = null;
@@ -636,16 +684,40 @@ function updateAnt(agent: Agent, world: WorldState) {
       agent.task = "attack";
       const targetDistance = distanceSq(agent.position, target.position);
       if (targetDistance > 2.8) steer(agent, target.position, speed * 1.18);
-      else {
-        target.agitation = clamp(target.agitation + 0.005, 0, 1);
+      else if (spiderTarget) {
+        spiderTarget.agitation = clamp(spiderTarget.agitation + 0.005, 0, 1);
         const defenseFocus = world.colonyPriority === "defend" ? 1.28 : 1;
-        target.wounds += (target.dominant ? 0.00018 : 0.0012) * defenseFocus;
-        target.mobility = clamp(
-          target.mobility - (target.dominant ? 0.00004 : 0.00018),
+        spiderTarget.wounds +=
+          (spiderTarget.dominant ? 0.00018 : 0.0012) * defenseFocus;
+        spiderTarget.mobility = clamp(
+          spiderTarget.mobility -
+            (spiderTarget.dominant ? 0.00004 : 0.00018),
           0.2,
           1,
         );
         agent.energy = clamp(agent.energy - 0.0014, 0.15, 1);
+      } else if (faunaTarget) {
+        const defenseFocus = world.colonyPriority === "defend" ? 1.3 : 1;
+        faunaTarget.integrity = clamp(
+          faunaTarget.integrity - 0.0045 * defenseFocus,
+          0,
+          1,
+        );
+        faunaTarget.task = "flee";
+        agent.energy = clamp(agent.energy - 0.001, 0.15, 1);
+        if (faunaTarget.integrity <= 0) {
+          removeAgent(
+            world,
+            faunaTarget,
+            "La patrulla expulsó un individuo del corredor",
+          );
+          event(
+            world,
+            "fauna-repelled",
+            "La presión colectiva liberó el corredor",
+            faunaTarget.id,
+          );
+        }
       }
       agent.position.x += agent.velocity.x;
       agent.position.z += agent.velocity.z;
@@ -790,6 +862,52 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
       }
       return;
     }
+    const exposedAnt = world.agents
+      .filter(
+        (candidate) =>
+          candidate.alive &&
+          candidate.kind === "ant" &&
+          candidate.faction === "acromyrmex" &&
+          distanceSq(agent.position, candidate.position) < 196 &&
+          (candidate.carrying > 0 || candidate.order !== "autonomous"),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.carrying > 0) - Number(a.carrying > 0) ||
+          distanceSq(a.position, agent.position) -
+            distanceSq(b.position, agent.position) ||
+          a.id - b.id,
+      )[0];
+    if (exposedAnt && agent.energy > 0.22) {
+      if (agent.targetId !== exposedAnt.id)
+        event(
+          world,
+          "fauna-attack",
+          "Vespula interceptó una obrera expuesta",
+          exposedAnt.id,
+        );
+      agent.targetId = exposedAnt.id;
+      agent.task = "attack";
+      steer(agent, exposedAnt.position, 0.2);
+      agent.position.x += agent.velocity.x;
+      agent.position.z += agent.velocity.z;
+      if (
+        distanceSq(agent.position, exposedAnt.position) < 2.6 &&
+        (world.tick + agent.id) % 23 === 0
+      ) {
+        exposedAnt.integrity = clamp(exposedAnt.integrity - 0.16, 0, 1);
+        exposedAnt.poisonedTicks = Math.max(exposedAnt.poisonedTicks, 70);
+        exposedAnt.task = "flee";
+        agent.energy = clamp(agent.energy - 0.028, 0, 1);
+        if (exposedAnt.integrity <= 0)
+          removeAgent(
+            world,
+            exposedAnt,
+            "Vespula derribó una obrera aislada",
+          );
+      }
+      return;
+    }
   }
   if (agent.kind === "termite") {
     const danger = world.spiders.some(
@@ -832,6 +950,66 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         );
       }
     }
+  }
+  if (agent.kind === "beetle") {
+    const exposedAnt = world.agents
+      .filter(
+        (candidate) =>
+          candidate.alive &&
+          candidate.kind === "ant" &&
+          candidate.faction === "acromyrmex" &&
+          distanceSq(agent.position, candidate.position) < 64,
+      )
+      .sort(
+        (a, b) =>
+          distanceSq(a.position, agent.position) -
+            distanceSq(b.position, agent.position) ||
+          a.id - b.id,
+      )[0];
+    if (exposedAnt) {
+      if (agent.targetId !== exposedAnt.id)
+        event(
+          world,
+          "fauna-attack",
+          "Un escarabajo corredor entró en contacto con la patrulla",
+          exposedAnt.id,
+        );
+      agent.targetId = exposedAnt.id;
+      agent.task = "attack";
+      steer(agent, exposedAnt.position, 0.105);
+      agent.position.x += agent.velocity.x;
+      agent.position.z += agent.velocity.z;
+      if (
+        distanceSq(agent.position, exposedAnt.position) < 1.8 &&
+        (world.tick + agent.id) % 41 === 0
+      ) {
+        exposedAnt.integrity = clamp(exposedAnt.integrity - 0.085, 0, 1);
+        if (exposedAnt.integrity <= 0)
+          removeAgent(
+            world,
+            exposedAnt,
+            "Un escarabajo corredor capturó una obrera aislada",
+          );
+      }
+      return;
+    }
+  }
+  if (agent.kind === "fly" && world.nest.wasteLoad > 0.45) {
+    steer(agent, NEST, 0.095);
+    agent.position.x += agent.velocity.x;
+    agent.position.z += agent.velocity.z;
+    agent.task = "forage";
+    if (distanceSq(agent.position, NEST) < 12 && (world.tick + agent.id) % 240 === 0) {
+      world.nest.wasteLoad = clamp(world.nest.wasteLoad + 0.012, 0, 1);
+      world.fungusHealth = clamp(world.fungusHealth - 0.008, 0, 1);
+      event(
+        world,
+        "waste-contaminated",
+        "Las moscas alcanzaron el bolsón de residuos",
+        agent.id,
+      );
+    }
+    return;
   }
   const blocked =
     flight &&
@@ -905,9 +1083,6 @@ function choosePrey(world: WorldState, spider: Spider): Agent | undefined {
 }
 
 function killAgent(world: WorldState, agent: Agent, spider: Spider) {
-  agent.alive = false;
-  agent.velocity = { x: 0, z: 0 };
-  world.metrics.lossesByFaction[agent.faction] += 1;
   world.metrics.unitsConsumed += 1;
   spider.consumed += 1;
   spider.hunger = clamp(
@@ -921,28 +1096,7 @@ function killAgent(world: WorldState, agent: Agent, spider: Spider) {
     "El depredador se alimentó y redujo su actividad",
     agent.id,
   );
-  event(world, "agent-died", "Un individuo fue perdido", agent.id);
-  if (agent.controlled) {
-    const successor = world.agents.find(
-      (candidate) =>
-        candidate.faction === "acromyrmex" &&
-        candidate.alive &&
-        !candidate.controlled,
-    );
-    if (successor) {
-      successor.controlled = true;
-      world.playerAgentId = successor.id;
-      world.mandate *= 0.72;
-      event(
-        world,
-        "succession",
-        "La memoria operativa pasa a otra obrera",
-        successor.id,
-      );
-    } else {
-      endMatch(world, "defeat", "La colonia ya no tiene obreras disponibles");
-    }
-  }
+  removeAgent(world, agent, "Un individuo fue perdido");
 }
 
 function updateSpider(spider: Spider, world: WorldState) {

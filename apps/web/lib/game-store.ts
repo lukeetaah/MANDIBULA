@@ -355,7 +355,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   clearInspection: () => set({ observed: null }),
   attackObserved: () => {
     const state = get();
-    if (state.observed?.kind !== "spider") return;
+    if (!state.observed) return;
     const ids = commandableIds(state);
     if (!ids.length) return;
     set({

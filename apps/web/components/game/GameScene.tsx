@@ -2,7 +2,7 @@
 
 import { Line } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type {
@@ -30,6 +30,35 @@ const signalColors = {
   recruit: "#56d5ce",
 } as const;
 
+function RenderBudget() {
+  const { invalidate } = useThree();
+  const reducedMotion = useGameStore((state) => state.settings.reducedMotion);
+  const setFps = useGameStore((state) => state.setFps);
+  const sample = useRef({ at: performance.now(), frames: 0 });
+  useEffect(() => {
+    const interval = window.setInterval(
+      () => {
+        if (!document.hidden) invalidate();
+      },
+      1000 / (reducedMotion ? 20 : 30),
+    );
+    return () => window.clearInterval(interval);
+  }, [invalidate, reducedMotion]);
+  useFrame(() => {
+    sample.current.frames += 1;
+    const now = performance.now();
+    if (now - sample.current.at >= 1000) {
+      setFps(
+        Math.round(
+          (sample.current.frames * 1000) / (now - sample.current.at),
+        ),
+      );
+      sample.current = { at: now, frames: 0 };
+    }
+  });
+  return null;
+}
+
 function antPart(
   geometry: THREE.BufferGeometry,
   position: [number, number, number],
@@ -43,6 +72,26 @@ function antPart(
   );
   geometry.applyMatrix4(matrix);
   return geometry;
+}
+
+function faunaPart(
+  geometry: THREE.BufferGeometry,
+  color: string,
+  position: [number, number, number],
+  rotation: [number, number, number] = [0, 0, 0],
+  scale: [number, number, number] = [1, 1, 1],
+) {
+  const shade = new THREE.Color(color);
+  const colors = new Float32Array(
+    geometry.getAttribute("position").count * 3,
+  );
+  for (let index = 0; index < colors.length; index += 3) {
+    colors[index] = shade.r;
+    colors[index + 1] = shade.g;
+    colors[index + 2] = shade.b;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  return antPart(geometry, position, rotation, scale);
 }
 
 function createAntGeometry() {
@@ -94,6 +143,45 @@ function createAntGeometry() {
 }
 
 const ANT_GEOMETRY = createAntGeometry();
+const CARGO_GEOMETRY = new THREE.CircleGeometry(0.38, 7);
+
+function CargoLoads({ agents }: { agents: Agent[] }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  useEffect(() => {
+    if (!mesh.current) return;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(0.08, 0.35, 0.15),
+    );
+    const scale = new THREE.Vector3(1, 1, 1);
+    agents.forEach((agent, index) => {
+      position.set(
+        agent.position.x,
+        Math.hypot(agent.position.x, agent.position.z) < 4.8 ? 1.08 : 0.49,
+        agent.position.z,
+      );
+      matrix.compose(position, quaternion, scale);
+      mesh.current!.setMatrixAt(index, matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+    mesh.current.computeBoundingSphere();
+  }, [agents]);
+  if (!agents.length) return null;
+  return (
+    <instancedMesh
+      ref={mesh}
+      args={[CARGO_GEOMETRY, undefined, agents.length]}
+      castShadow
+    >
+      <meshStandardMaterial
+        color="#71934c"
+        roughness={0.95}
+        side={THREE.DoubleSide}
+      />
+    </instancedMesh>
+  );
+}
 
 function AntColony({ agents }: { agents: Agent[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
@@ -174,87 +262,164 @@ function AntColony({ agents }: { agents: Agent[] }) {
             />
           </mesh>
         ))}
-      {agents
-        .filter((agent) => agent.carrying > 0 && agent.alive)
-        .map((agent) => (
-          <mesh
-            key={`load-${agent.id}`}
-            castShadow
-            position={[
-              agent.position.x,
-              Math.hypot(agent.position.x, agent.position.z) < 4.8
-                ? 1.08
-                : 0.49,
-              agent.position.z,
-            ]}
-            rotation={[0.08, 0.35, 0.15]}
-          >
-            <circleGeometry args={[0.38, 7]} />
-            <meshStandardMaterial
-              color="#71934c"
-              roughness={0.95}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-        ))}
+      <CargoLoads
+        agents={agents.filter((agent) => agent.carrying > 0 && agent.alive)}
+      />
     </>
   );
 }
 
-function Flyer({ agent }: { agent: Agent }) {
+type FaunaKind = Exclude<Agent["kind"], "ant">;
+
+function createFaunaGeometry(kind: FaunaKind) {
+  const sphere = () => new THREE.SphereGeometry(0.5, 8, 6);
+  const parts: THREE.BufferGeometry[] = [];
+  const add = (
+    geometry: THREE.BufferGeometry,
+    color: string,
+    position: [number, number, number],
+    rotation: [number, number, number] = [0, 0, 0],
+    scale: [number, number, number] = [1, 1, 1],
+  ) => parts.push(faunaPart(geometry, color, position, rotation, scale));
+
+  if (kind === "wasp") {
+    add(sphere(), "#211d16", [0, 0.02, 0.58], [0, 0, 0], [0.52, 0.5, 0.58]);
+    add(sphere(), "#d7aa30", [0, 0.02, 0.08], [0, 0, 0], [0.62, 0.56, 0.7]);
+    add(sphere(), "#211d16", [0, 0, -0.52], [0, 0, 0], [0.48, 0.48, 0.9]);
+    add(new THREE.BoxGeometry(0.34, 0.05, 0.72), "#d9e6d5", [0.35, 0.2, -0.02], [0.08, -0.22, -0.18]);
+    add(new THREE.BoxGeometry(0.34, 0.05, 0.72), "#d9e6d5", [-0.35, 0.2, -0.02], [0.08, 0.22, 0.18]);
+  } else if (kind === "bumblebee") {
+    add(sphere(), "#241d1a", [0, 0.02, 0.5], [0, 0, 0], [0.62, 0.58, 0.6]);
+    add(sphere(), "#d66b2e", [0, 0.04, -0.02], [0, 0, 0], [0.78, 0.7, 0.82]);
+    add(sphere(), "#b54f25", [0, 0.03, -0.63], [0, 0, 0], [0.68, 0.62, 0.86]);
+    add(new THREE.BoxGeometry(0.54, 0.06, 0.82), "#cfe2df", [0.46, 0.24, -0.08], [0.06, -0.3, -0.18]);
+    add(new THREE.BoxGeometry(0.54, 0.06, 0.82), "#cfe2df", [-0.46, 0.24, -0.08], [0.06, 0.3, 0.18]);
+  } else if (kind === "termite") {
+    add(sphere(), "#8d6541", [0, 0.01, 0.64], [0, 0, 0], [0.58, 0.48, 0.58]);
+    add(sphere(), "#dccca4", [0, 0.01, 0.12], [0, 0, 0], [0.58, 0.46, 0.68]);
+    add(sphere(), "#c8b98f", [0, 0.01, -0.55], [0, 0, 0], [0.62, 0.46, 0.9]);
+    add(new THREE.ConeGeometry(0.1, 0.4, 5), "#533b2b", [0.16, 0, 1.02], [Math.PI / 2, 0, -0.18]);
+    add(new THREE.ConeGeometry(0.1, 0.4, 5), "#533b2b", [-0.16, 0, 1.02], [Math.PI / 2, 0, 0.18]);
+  } else if (kind === "fly") {
+    add(sphere(), "#366c59", [0, 0, 0.12], [0, 0, 0], [0.55, 0.5, 0.78]);
+    add(sphere(), "#222925", [0, 0, 0.58], [0, 0, 0], [0.5, 0.45, 0.5]);
+    add(sphere(), "#9e352e", [0.3, 0.08, 0.68], [0, 0, 0], [0.3, 0.3, 0.25]);
+    add(sphere(), "#9e352e", [-0.3, 0.08, 0.68], [0, 0, 0], [0.3, 0.3, 0.25]);
+    add(new THREE.BoxGeometry(0.44, 0.045, 0.72), "#c9dedb", [0.4, 0.18, 0], [0.08, -0.28, -0.12]);
+    add(new THREE.BoxGeometry(0.44, 0.045, 0.72), "#c9dedb", [-0.4, 0.18, 0], [0.08, 0.28, 0.12]);
+  } else {
+    add(sphere(), "#2c2a20", [0, 0, 0.48], [0, 0, 0], [0.58, 0.42, 0.58]);
+    add(sphere(), "#425a3b", [0.27, 0.08, -0.15], [0, 0, 0.08], [0.56, 0.46, 1]);
+    add(sphere(), "#536847", [-0.27, 0.08, -0.15], [0, 0, -0.08], [0.56, 0.46, 1]);
+    add(new THREE.BoxGeometry(0.045, 0.1, 0.94), "#20221b", [0, 0.28, -0.16]);
+  }
+
+  const merged = mergeGeometries(parts, false);
+  for (const part of parts) part.dispose();
+  if (!merged) throw new Error(`No se pudo construir la geometria ${kind}`);
+  merged.computeVertexNormals();
+  return merged;
+}
+
+const FAUNA_KINDS: FaunaKind[] = [
+  "wasp",
+  "bumblebee",
+  "termite",
+  "fly",
+  "beetle",
+];
+const FAUNA_GEOMETRY = Object.fromEntries(
+  FAUNA_KINDS.map((kind) => [kind, createFaunaGeometry(kind)]),
+) as Record<FaunaKind, THREE.BufferGeometry>;
+const FAUNA_SCALE: Record<FaunaKind, number> = {
+  wasp: 0.62,
+  bumblebee: 0.78,
+  termite: 0.52,
+  fly: 0.5,
+  beetle: 0.63,
+};
+
+const FaunaInstances = memo(function FaunaInstances({
+  kind,
+  agents,
+}: {
+  kind: FaunaKind;
+  agents: Agent[];
+}) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
   const inspect = useGameStore((state) => state.inspect);
-  const observed = useGameStore((state) => state.observed);
-  const color = factionColors[agent.faction];
-  const y =
-    agent.kind === "termite" ? 0.18 : 2.8 + Math.sin(agent.id * 2.1) * 0.6;
+  useEffect(() => {
+    if (!mesh.current) return;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    agents.forEach((agent, index) => {
+      const ground = kind === "termite" || kind === "beetle";
+      const altitude = ground
+        ? kind === "beetle"
+          ? 0.3
+          : 0.22
+        : kind === "bumblebee"
+          ? 1.8 + Math.sin(agent.id) * 0.22
+          : 2.15 + Math.sin(agent.id * 2.1) * 0.28;
+      position.set(agent.position.x, agent.alive ? altitude : 0.1, agent.position.z);
+      quaternion.setFromEuler(
+        new THREE.Euler(
+          0,
+          Math.atan2(agent.velocity.x, agent.velocity.z),
+          agent.alive ? 0 : Math.PI / 2,
+        ),
+      );
+      scale.setScalar(FAUNA_SCALE[kind] * (agent.alive ? 1 : 0.45));
+      matrix.compose(position, quaternion, scale);
+      mesh.current!.setMatrixAt(index, matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+    mesh.current.computeBoundingSphere();
+  }, [agents, kind]);
+
   return (
-    <group
-      position={[agent.position.x, y, agent.position.z]}
-      rotation={[0, Math.atan2(agent.velocity.x, agent.velocity.z), 0]}
-      scale={agent.kind === "bumblebee" ? 0.62 : 0.42}
+    <instancedMesh
+      ref={mesh}
+      args={[FAUNA_GEOMETRY[kind], undefined, agents.length]}
       onPointerDown={(event) => {
-        if (event.button !== 0) return;
+        if (event.button !== 0 || event.instanceId === undefined) return;
+        const agent = agents[event.instanceId];
+        if (!agent?.alive) return;
         event.stopPropagation();
         inspect("agent", agent.id);
       }}
     >
-      <mesh>
-        <sphereGeometry args={[1.45, 8, 6]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      <mesh castShadow scale={[0.7, 0.8, 1.4]}>
-        <sphereGeometry args={[0.35, 8, 6]} />
-        <meshStandardMaterial color={color} roughness={0.75} />
-      </mesh>
-      {agent.kind !== "termite" && (
-        <>
-          <mesh position={[0.28, 0.12, 0]} rotation={[0, 0.15, -0.48]}>
-            <circleGeometry args={[0.46, 12]} />
-            <meshBasicMaterial
-              transparent
-              opacity={0.3}
-              color="#dff2e7"
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <mesh position={[-0.28, 0.12, 0]} rotation={[0, -0.15, 0.48]}>
-            <circleGeometry args={[0.46, 12]} />
-            <meshBasicMaterial
-              transparent
-              opacity={0.3}
-              color="#dff2e7"
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-        </>
-      )}
-      {observed?.kind === "agent" && observed.id === agent.id && (
-        <mesh position={[0, -0.25, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.72, 0.84, 28]} />
+      <meshStandardMaterial vertexColors roughness={0.72} />
+    </instancedMesh>
+  );
+});
+
+function FaunaPopulation({ agents }: { agents: Agent[] }) {
+  const observed = useGameStore((state) => state.observed);
+  const observedAgent =
+    observed?.kind === "agent"
+      ? agents.find((agent) => agent.id === observed.id && agent.alive)
+      : undefined;
+  return (
+    <>
+      {FAUNA_KINDS.map((kind) => {
+        const population = agents.filter((agent) => agent.kind === kind);
+        return population.length ? (
+          <FaunaInstances key={kind} kind={kind} agents={population} />
+        ) : null;
+      })}
+      {observedAgent && (
+        <mesh
+          position={[observedAgent.position.x, 0.08, observedAgent.position.z]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <ringGeometry args={[0.72, 0.86, 24]} />
           <meshBasicMaterial color="#65d8cf" transparent opacity={0.9} />
         </mesh>
       )}
-    </group>
+    </>
   );
 }
 
@@ -305,11 +470,6 @@ function SpiderBody({ spider }: { spider: Spider }) {
           </mesh>
         );
       })}
-      <pointLight
-        color="#c64e35"
-        intensity={spider.dominant ? 0.5 : 0.15}
-        distance={4}
-      />
       {observed?.kind === "spider" && observed.id === spider.id && (
         <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.9, 1.04, 32]} />
@@ -777,41 +937,71 @@ function SilkWeb({
   const radius = Math.max(2.5, Math.hypot(b.x - a.x, b.z - a.z) / 2);
   const rotation = -Math.atan2(b.z - a.z, b.x - a.x);
   const opacity = 0.1 + integrity * 0.22;
+  const geometry = useMemo(() => {
+    const segments: number[] = [];
+    const radialCount = 14;
+    const squash = 0.64;
+    const hub = { x: radius * 0.07, y: -radius * 0.035 };
+    const rim = Array.from({ length: radialCount }, (_, index) => {
+      const angle = (index / radialCount) * Math.PI * 2;
+      const irregularity = 0.93 + ((index * 17) % 5) * 0.025;
+      return {
+        x: Math.cos(angle) * radius * irregularity,
+        y: Math.sin(angle) * radius * squash * irregularity,
+      };
+    });
+    const line = (x1: number, y1: number, x2: number, y2: number) =>
+      segments.push(x1, y1, 0, x2, y2, 0);
+
+    rim.forEach((point, index) => {
+      const next = rim[(index + 1) % rim.length]!;
+      line(point.x, point.y, next.x, next.y);
+      line(hub.x, hub.y, point.x, point.y);
+    });
+
+    const spiralSamples = 132;
+    let previous: { x: number; y: number } | undefined;
+    for (let index = 0; index < spiralSamples; index += 1) {
+      const progress = index / (spiralSamples - 1);
+      const angle = progress * Math.PI * 12.2;
+      const spiralRadius = radius * (0.09 + progress * 0.79);
+      const point = {
+        x: hub.x + Math.cos(angle) * spiralRadius,
+        y: hub.y + Math.sin(angle) * spiralRadius * squash,
+      };
+      if (previous) line(previous.x, previous.y, point.x, point.y);
+      previous = point;
+    }
+
+    [1, 4, 8, 11].forEach((index) => {
+      const point = rim[index]!;
+      const length = Math.hypot(point.x, point.y / squash) || 1;
+      line(
+        point.x,
+        point.y,
+        point.x + (point.x / length) * radius * 0.45,
+        point.y + (point.y / squash / length) * radius * 0.34,
+      );
+    });
+
+    const result = new THREE.BufferGeometry();
+    result.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(segments, 3),
+    );
+    result.computeBoundingSphere();
+    return result;
+  }, [radius]);
   return (
     <group position={[centerX, 2.4, centerZ]} rotation={[0, rotation, 0]}>
-      {Array.from({ length: 8 }, (_, index) => {
-        const angle = (index / 8) * Math.PI * 2;
-        return (
-          <Line
-            key={`r${index}`}
-            points={[
-              [0, 0, 0],
-              [Math.cos(angle) * radius, Math.sin(angle) * radius * 0.62, 0],
-            ]}
-            color="#e7e1c9"
-            lineWidth={0.6}
-            transparent
-            opacity={opacity}
-          />
-        );
-      })}
-      {[0.34, 0.62, 0.9].map((factor) => (
-        <Line
-          key={factor}
-          points={Array.from({ length: 33 }, (_, index) => {
-            const angle = (index / 32) * Math.PI * 2;
-            return [
-              Math.cos(angle) * radius * factor,
-              Math.sin(angle) * radius * 0.62 * factor,
-              0,
-            ] as [number, number, number];
-          })}
+      <lineSegments geometry={geometry}>
+        <lineBasicMaterial
           color="#e7e1c9"
-          lineWidth={0.55}
           transparent
           opacity={opacity}
+          depthWrite={false}
         />
-      ))}
+      </lineSegments>
     </group>
   );
 }
@@ -822,6 +1012,11 @@ function Webs() {
     <>
       {webs
         .filter((web) => web.integrity > 0.05)
+        .filter(
+          (web, index, active) =>
+            active.findIndex((candidate) => candidate.ownerId === web.ownerId) ===
+            index,
+        )
         .map((web) => (
           <SilkWeb key={web.id} a={web.a} b={web.b} integrity={web.integrity} />
         ))}
@@ -913,6 +1108,8 @@ function CameraRig() {
   const sensitivity = useGameStore((state) => state.settings.cameraSensitivity);
   const setTactical = useGameStore((state) => state.setTactical);
   const tactical = useGameStore((state) => state.tactical);
+  const underground = useGameStore((state) => state.underground);
+  const setUnderground = useGameStore((state) => state.setUnderground);
   const togglePause = useGameStore((state) => state.togglePause);
   const emitSignal = useGameStore((state) => state.emitSignal);
   const returnSelected = useGameStore((state) => state.returnSelected);
@@ -935,6 +1132,7 @@ function CameraRig() {
       if (event.code === "Escape") togglePause();
       if (event.code === "KeyQ") emitSignal();
       if (event.code === "KeyR") returnSelected();
+      if (event.code === "KeyB") setUnderground(!underground);
       if (event.code === "Home") targetCenter.current.set(0, 0, 0);
     };
     const up = (event: KeyboardEvent) => keys.current.delete(event.code);
@@ -976,7 +1174,16 @@ function CameraRig() {
       canvas.removeEventListener("pointerdown", pointerDown);
       canvas.removeEventListener("wheel", wheel);
     };
-  }, [emitSignal, gl, returnSelected, setTactical, tactical, togglePause]);
+  }, [
+    emitSignal,
+    gl,
+    returnSelected,
+    setTactical,
+    setUnderground,
+    tactical,
+    togglePause,
+    underground,
+  ]);
 
   useFrame((_, delta) => {
     if (previousFocus.current !== focusRequest) {
@@ -1158,6 +1365,7 @@ export function GameScene() {
   const underground = useGameStore((state) => state.underground);
   return (
     <>
+      <RenderBudget />
       <color
         attach="background"
         args={[underground ? "#100c09" : tactical ? "#18231d" : "#78908a"]}
@@ -1188,11 +1396,9 @@ export function GameScene() {
           <AntColony
             agents={world.agents.filter((agent) => agent.kind === "ant")}
           />
-          {world.agents
-            .filter((agent) => agent.kind !== "ant")
-            .map((agent) => (
-              <Flyer key={agent.id} agent={agent} />
-            ))}
+          <FaunaPopulation
+            agents={world.agents.filter((agent) => agent.kind !== "ant")}
+          />
           {world.spiders.map((spider) => (
             <SpiderBody key={spider.id} spider={spider} />
           ))}

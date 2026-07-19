@@ -446,6 +446,53 @@ button {
   font-family: "Barlow Condensed";
   font-size: 11px;
 }
+.top-actions .nest-access {
+  position: relative;
+  width: 114px;
+  height: 42px;
+  margin-top: -7px;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  padding: 5px 8px;
+  text-align: left;
+  border-color: rgba(216, 176, 105, 0.52);
+  background: linear-gradient(135deg, rgba(98, 68, 31, 0.78), rgba(29, 26, 18, 0.9));
+  box-shadow: inset 0 -2px 0 rgba(216, 176, 105, 0.22);
+}
+.nest-access > span {
+  grid-row: 1 / 3;
+  color: var(--amber);
+  font: 700 22px/1 "Barlow Condensed";
+  text-align: center;
+}
+.nest-access > b {
+  align-self: end;
+  color: #f2e6c9;
+  font: 700 10px/1 "Barlow Condensed";
+  letter-spacing: 0.11em;
+}
+.nest-access > small {
+  align-self: start;
+  margin-top: 3px;
+  color: #bc9e67;
+  font-size: 6px;
+  letter-spacing: 0.11em;
+}
+.top-actions .nest-access.is-called {
+  border-color: var(--amber);
+  box-shadow:
+    0 0 0 3px rgba(216, 176, 105, 0.12),
+    0 0 26px rgba(216, 176, 105, 0.28);
+  animation: nestCall 1.2s ease-in-out infinite;
+}
+@keyframes nestCall {
+  50% {
+    transform: translateY(2px);
+    filter: brightness(1.2);
+  }
+}
 
 .mission-card {
   position: absolute;
@@ -573,6 +620,20 @@ button {
   font-size: 8px;
   line-height: 1.35;
 }
+.tutorial-action {
+  margin-top: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--amber);
+  background: rgba(216, 176, 105, 0.12);
+  color: #ead9b7;
+  font: 700 8px/1 "DM Sans";
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.tutorial-action b {
+  margin-left: 10px;
+  color: var(--amber);
+}
 .tutorial-track {
   position: absolute;
   left: 0;
@@ -617,6 +678,79 @@ button {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
   backdrop-filter: blur(10px);
   pointer-events: auto;
+}
+.fauna-key {
+  position: absolute;
+  right: 20px;
+  bottom: 178px;
+  width: 210px;
+  padding: 8px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(101, 216, 207, 0.2);
+  background: rgba(11, 16, 12, 0.86);
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(7px);
+  pointer-events: auto;
+}
+.fauna-key > small {
+  padding: 2px 3px 5px;
+  color: #6f998f;
+  font-size: 6px;
+  letter-spacing: 0.13em;
+}
+.fauna-key button {
+  min-height: 29px;
+  padding: 4px 6px;
+  display: grid;
+  grid-template-columns: 13px 1fr 18px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.025);
+  color: #cbd1bd;
+  text-align: left;
+  cursor: pointer;
+}
+.fauna-key button:hover:not(:disabled) {
+  border-color: rgba(101, 216, 207, 0.42);
+  background: rgba(101, 216, 207, 0.07);
+}
+.fauna-key button:disabled {
+  opacity: 0.35;
+}
+.fauna-key button > i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #647661;
+  box-shadow: 0 0 0 3px rgba(100, 118, 97, 0.12);
+}
+.fauna-key .fauna-wasp > i { background: #d7aa30; }
+.fauna-key .fauna-bumblebee > i { background: #d66b2e; }
+.fauna-key .fauna-termite > i { background: #dccca4; }
+.fauna-key .fauna-fly > i { background: #4f8b75; }
+.fauna-key .fauna-beetle > i { background: #536847; }
+.fauna-key button > span {
+  display: grid;
+  gap: 2px;
+}
+.fauna-key button b {
+  font: 600 9px/1 "Barlow Condensed";
+  letter-spacing: 0.08em;
+}
+.fauna-key button small {
+  overflow: hidden;
+  color: #737d6d;
+  font-size: 5px;
+  letter-spacing: 0.07em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fauna-key button em {
+  color: var(--cyan);
+  font: normal 11px/1 "Barlow Condensed";
+  text-align: right;
 }
 .nest-console header {
   display: flex;
@@ -1584,6 +1718,12 @@ button {
   }
   .minimap {
     display: none;
+  }
+  .fauna-key {
+    display: none;
+  }
+  .top-actions .nest-access {
+    width: 92px;
   }
   .briefing-panel {
     grid-template-columns: 1fr;

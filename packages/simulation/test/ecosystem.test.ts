@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { createWorld, stepWorld } from "../src";
+import { createWorld, stepWorld, type SimCommand } from "../src";
+
+function attackCommand(
+  world: ReturnType<typeof createWorld>,
+  entityId: number,
+  targetId: number,
+): SimCommand {
+  return {
+    protocolVersion: 1,
+    matchId: "ecosystem-test",
+    playerId: "player-a",
+    entityId,
+    tick: world.tick,
+    sequence: world.playerSequence + 1,
+    type: "ATTACK",
+    payload: { targetId },
+  };
+}
 
 describe("red trófica y depredadores", () => {
   it("una araña elige también fauna NPC y respeta saciedad", () => {
@@ -55,6 +72,41 @@ describe("red trófica y depredadores", () => {
     expect(spider.wounds).toBeGreaterThan(0);
     expect(wasps.reduce((sum, wasp) => sum + wasp.energy, 0)).toBeLessThan(
       energyBefore,
+    );
+  });
+
+  it("Vespula intercepta una obrera expuesta con carga", () => {
+    const world = createWorld(108);
+    const wasp = world.agents.find((agent) => agent.kind === "wasp")!;
+    const ant = world.agents.find(
+      (agent) => agent.kind === "ant" && agent.faction === "acromyrmex",
+    )!;
+    world.spiders.forEach((spider) => {
+      spider.visible = false;
+      spider.nextArrivalTick = 99_999;
+    });
+    ant.position = { ...wasp.position };
+    ant.carrying = 1;
+    ant.order = "gather";
+    world.tick = (23 - (wasp.id % 23)) % 23;
+    stepWorld(world);
+    expect(ant.integrity).toBeLessThan(1);
+    expect(ant.poisonedTicks).toBeGreaterThan(0);
+    expect(wasp.task).toBe("attack");
+  });
+
+  it("una patrulla puede expulsar fauna hostil observada", () => {
+    const world = createWorld(109);
+    const ant = world.agents.find(
+      (agent) => agent.kind === "ant" && agent.faction === "acromyrmex",
+    )!;
+    const beetle = world.agents.find((agent) => agent.kind === "beetle")!;
+    ant.position = { ...beetle.position };
+    beetle.integrity = 0.003;
+    stepWorld(world, [attackCommand(world, ant.id, beetle.id)]);
+    expect(beetle.alive).toBe(false);
+    expect(world.eventLog.some((entry) => entry.type === "fauna-repelled")).toBe(
+      true,
     );
   });
 
