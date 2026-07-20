@@ -122,56 +122,41 @@ const defaultSettings: AccessibilitySettings = {
   guidedPauses: true,
 };
 
-const coachCopy: Partial<
-  Record<
-    SimEvent["type"],
-    Omit<CoachCard, "event">
-  >
-> = {
+const coachCopy: Partial<Record<SimEvent["type"], Omit<CoachCard, "event">>> = {
   "predator-sign": {
     title: "El paisaje acaba de avisarte",
-    body:
-      "La caída del tránsito y las vibraciones anticipan un depredador. Todavía no es un ataque: es tiempo de reagrupar.",
-    response:
-      "Elegí una patrulla, marcá ALARMA con Q o volvé al nido con R.",
+    body: "La caída del tránsito y las vibraciones anticipan un depredador. Todavía no es un ataque: es tiempo de reagrupar.",
+    response: "Elegí una patrulla, marcá ALARMA con Q o volvé al nido con R.",
     tone: "warning",
   },
   "spider-attack": {
     title: "Una araña eligió una presa",
-    body:
-      "No está atacando a toda la colonia. Sigue vibraciones de una obrera o de una ruta concreta.",
-    response:
-      "Retirá la patrulla aislada o rodeala con al menos diez obreras.",
+    body: "No está atacando a toda la colonia. Sigue vibraciones de una obrera o de una ruta concreta.",
+    response: "Retirá la patrulla aislada o rodeala con al menos diez obreras.",
     tone: "danger",
   },
   "fauna-attack": {
     title: "Un cazador entró en la ruta",
-    body:
-      "Vespula y los escarabajos prefieren obreras expuestas. La colonia no necesita pelear todas las veces.",
+    body: "Vespula y los escarabajos prefieren obreras expuestas. La colonia no necesita pelear todas las veces.",
     response:
       "Seleccioná una patrulla y usá AHUYENTAR, o cambiá el corredor de cosecha.",
     tone: "danger",
   },
   "waste-contaminated": {
     title: "Los residuos están atrayendo moscas",
-    body:
-      "La higiene dejó de ser un número: el bolsón saturado permite que la contaminación alcance el jardín.",
-    response:
-      "Entrá al SUBSUELO con B y mejorá el bolsón de residuos.",
+    body: "La higiene dejó de ser un número: el bolsón saturado permite que la contaminación alcance el jardín.",
+    response: "Entrá al SUBSUELO con B y mejorá el bolsón de residuos.",
     tone: "warning",
   },
   "agent-died": {
     title: "La colonia perdió una obrera",
-    body:
-      "Una baja no termina la partida. Revisá si la ruta quedó expuesta antes de mandar reemplazos.",
-    response:
-      "Pausá la cosecha peligrosa, reagrupá y observá el depredador.",
+    body: "Una baja no termina la partida. Revisá si la ruta quedó expuesta antes de mandar reemplazos.",
+    response: "Pausá la cosecha peligrosa, reagrupá y observá el depredador.",
     tone: "danger",
   },
   "phase-changed": {
     title: "La colonia cambió de necesidad",
-    body:
-      "Superaste una etapa. A partir de ahora importa tanto la arquitectura como la cantidad cosechada.",
+    body: "Superaste una etapa. A partir de ahora importa tanto la arquitectura como la cantidad cosechada.",
     response:
       "Abrí el subsuelo y elegí una prioridad antes de acelerar el tiempo.",
     tone: "growth",

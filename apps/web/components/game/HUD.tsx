@@ -452,11 +452,16 @@ function useAmbientSound(
     const { context, gain: master } = audio.current;
     const oscillator = context.createOscillator();
     const cueGain = context.createGain();
-    const dangerous = ["predator-sign", "spider-attack", "fauna-attack"].includes(
-      latestEvent.type,
-    );
+    const dangerous = [
+      "predator-sign",
+      "spider-attack",
+      "fauna-attack",
+    ].includes(latestEvent.type);
     oscillator.type = dangerous ? "sawtooth" : "sine";
-    oscillator.frequency.setValueAtTime(dangerous ? 120 : 420, context.currentTime);
+    oscillator.frequency.setValueAtTime(
+      dangerous ? 120 : 420,
+      context.currentTime,
+    );
     oscillator.frequency.exponentialRampToValueAtTime(
       dangerous ? 62 : 620,
       context.currentTime + 0.28,
@@ -466,7 +471,10 @@ function useAmbientSound(
       intense ? 0.2 : 0.11,
       context.currentTime + 0.025,
     );
-    cueGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.34);
+    cueGain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      context.currentTime + 0.34,
+    );
     oscillator.connect(cueGain).connect(master);
     oscillator.start();
     oscillator.stop(context.currentTime + 0.36);
@@ -1004,7 +1012,8 @@ export function HUD() {
 
       <MiniMap />
       <div className="camera-hint">
-        WASD / BORDES <i /> RUEDA ZOOM <i /> B SUBSUELO <i /> BOTÓN CENTRAL ROTAR
+        WASD / BORDES <i /> RUEDA ZOOM <i /> B SUBSUELO <i /> BOTÓN CENTRAL
+        ROTAR
       </div>
 
       {selectionBox && <div className="selection-box" style={selectionBox} />}

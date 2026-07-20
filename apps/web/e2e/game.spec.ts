@@ -6,10 +6,6 @@ test("inicia el tutorial de mando y permite elegir una patrulla", async ({
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /MANDÍBULA/i })).toBeVisible();
   await page.getByRole("button", { name: /FUNDAR LA RED/ }).click();
-  await expect(
-    page.getByRole("dialog", { name: "Tutorial de mando colectivo" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: /ENTRAR AL PULSO/ }).click();
   await expect(page.getByText("Alimentá lo que no ves.")).toBeVisible();
   await expect(page.getByText("Elegí una patrulla")).toBeVisible();
   await page.getByRole("button", { name: "ELEGIR 12 DISPONIBLES" }).click();
@@ -19,7 +15,6 @@ test("inicia el tutorial de mando y permite elegir una patrulla", async ({
 test("abre opciones de percepción accesibles", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /FUNDAR LA RED/ }).click();
-  await page.getByRole("button", { name: /ENTRAR AL PULSO/ }).click();
   await page.getByRole("button", { name: "Abrir accesibilidad" }).click();
   await expect(
     page.getByRole("dialog", { name: "Accesibilidad y controles" }),

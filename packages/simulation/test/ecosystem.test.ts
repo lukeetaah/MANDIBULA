@@ -105,9 +105,9 @@ describe("red trófica y depredadores", () => {
     beetle.integrity = 0.003;
     stepWorld(world, [attackCommand(world, ant.id, beetle.id)]);
     expect(beetle.alive).toBe(false);
-    expect(world.eventLog.some((entry) => entry.type === "fauna-repelled")).toBe(
-      true,
-    );
+    expect(
+      world.eventLog.some((entry) => entry.type === "fauna-repelled"),
+    ).toBe(true);
   });
 
   it("Acromyrmex sólo presiona por masa contra una araña pequeña", () => {

@@ -197,7 +197,8 @@ export function createWorld(
       }),
     );
   }
-  const waspCount = difficulty === "gentle" ? 3 : difficulty === "balanced" ? 5 : 7;
+  const waspCount =
+    difficulty === "gentle" ? 3 : difficulty === "balanced" ? 5 : 7;
   for (let i = 0; i < waspCount; i += 1)
     world.agents.push(
       makeAgent(world, "wasp", "vespula", { x: -24 + i * 0.9, z: 28 }),
@@ -779,8 +780,7 @@ function updateAnt(agent: Agent, world: WorldState) {
         spiderTarget.wounds +=
           (spiderTarget.dominant ? 0.00018 : 0.0012) * defenseFocus;
         spiderTarget.mobility = clamp(
-          spiderTarget.mobility -
-            (spiderTarget.dominant ? 0.00004 : 0.00018),
+          spiderTarget.mobility - (spiderTarget.dominant ? 0.00004 : 0.00018),
           0.2,
           1,
         );
@@ -874,18 +874,19 @@ function updateAnt(agent: Agent, world: WorldState) {
         : undefined;
     if (agent.faction === "acromyrmex" && !signal) {
       const isDefending = world.colonyPriority === "defend";
-      const isIndoor = world.colonyPriority === "brood" || world.colonyPriority === "excavate";
+      const isIndoor =
+        world.colonyPriority === "brood" || world.colonyPriority === "excavate";
       const angle = agent.id * 2.399963 + (isDefending ? world.tick * 0.01 : 0);
-      
-      const baseRadius = isIndoor ? 1.5 : (isDefending ? 5.5 : 2.2);
-      const spread = isIndoor ? 0.2 : (isDefending ? 0.8 : 0.33);
+
+      const baseRadius = isIndoor ? 1.5 : isDefending ? 5.5 : 2.2;
+      const spread = isIndoor ? 0.2 : isDefending ? 0.8 : 0.33;
       const radius = baseRadius + (agent.id % 8) * spread;
-      
+
       const restingPlace = {
         x: Math.cos(angle) * radius,
         z: Math.sin(angle) * radius,
       };
-      
+
       if (distanceSq(agent.position, restingPlace) > 1.2)
         steer(agent, restingPlace, speed * (isDefending ? 0.6 : 0.42));
       else {
@@ -970,22 +971,22 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     const exposedAnt =
       activeWasps < profile.attackerLimit
         ? world.agents
-      .filter(
-        (candidate) =>
-          candidate.alive &&
-          candidate.kind === "ant" &&
-          candidate.faction === "acromyrmex" &&
-          distanceSq(agent.position, candidate.position) <
-            196 * profile.spiderSpeed &&
-          (candidate.carrying > 0 || candidate.order !== "autonomous"),
-      )
-      .sort(
-        (a, b) =>
-          Number(b.carrying > 0) - Number(a.carrying > 0) ||
-          distanceSq(a.position, agent.position) -
-            distanceSq(b.position, agent.position) ||
-          a.id - b.id,
-      )[0]
+            .filter(
+              (candidate) =>
+                candidate.alive &&
+                candidate.kind === "ant" &&
+                candidate.faction === "acromyrmex" &&
+                distanceSq(agent.position, candidate.position) <
+                  196 * profile.spiderSpeed &&
+                (candidate.carrying > 0 || candidate.order !== "autonomous"),
+            )
+            .sort(
+              (a, b) =>
+                Number(b.carrying > 0) - Number(a.carrying > 0) ||
+                distanceSq(a.position, agent.position) -
+                  distanceSq(b.position, agent.position) ||
+                a.id - b.id,
+            )[0]
         : undefined;
     if (exposedAnt && agent.energy > 0.22) {
       if (agent.targetId !== exposedAnt.id)
@@ -1016,11 +1017,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         exposedAnt.task = "flee";
         agent.energy = clamp(agent.energy - 0.028, 0, 1);
         if (exposedAnt.integrity <= 0)
-          removeAgent(
-            world,
-            exposedAnt,
-            "Vespula derribó una obrera aislada",
-          );
+          removeAgent(world, exposedAnt, "Vespula derribó una obrera aislada");
       }
       return;
     }
@@ -1083,20 +1080,19 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     const exposedAnt =
       activeBeetles < profile.attackerLimit
         ? world.agents
-      .filter(
-        (candidate) =>
-          candidate.alive &&
-          candidate.kind === "ant" &&
-          candidate.faction === "acromyrmex" &&
-          distanceSq(agent.position, candidate.position) <
-          64 * profile.spiderSpeed,
-      )
-      .sort(
-        (a, b) =>
-          distanceSq(a.position, agent.position) -
-            distanceSq(b.position, agent.position) ||
-          a.id - b.id,
-      )[0]
+            .filter(
+              (candidate) =>
+                candidate.alive &&
+                candidate.kind === "ant" &&
+                candidate.faction === "acromyrmex" &&
+                distanceSq(agent.position, candidate.position) <
+                  64 * profile.spiderSpeed,
+            )
+            .sort(
+              (a, b) =>
+                distanceSq(a.position, agent.position) -
+                  distanceSq(b.position, agent.position) || a.id - b.id,
+            )[0]
         : undefined;
     if (exposedAnt) {
       if (agent.targetId !== exposedAnt.id)
@@ -1139,7 +1135,10 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     agent.position.x += agent.velocity.x;
     agent.position.z += agent.velocity.z;
     agent.task = "forage";
-    if (distanceSq(agent.position, NEST) < 12 && (world.tick + agent.id) % 240 === 0) {
+    if (
+      distanceSq(agent.position, NEST) < 12 &&
+      (world.tick + agent.id) % 240 === 0
+    ) {
       world.nest.wasteLoad = clamp(world.nest.wasteLoad + 0.012, 0, 1);
       world.fungusHealth = clamp(world.fungusHealth - 0.008, 0, 1);
       event(
@@ -1363,9 +1362,7 @@ function updateSpider(spider: Spider, world: WorldState) {
     steerSpider(
       spider,
       prey.position,
-      (spider.dominant ? 0.19 : 0.15) *
-        spider.mobility *
-        profile.spiderSpeed,
+      (spider.dominant ? 0.19 : 0.15) * spider.mobility * profile.spiderSpeed,
     );
     spider.energy = clamp(spider.energy - 0.0007, 0, 1);
   } else {
@@ -1373,8 +1370,7 @@ function updateSpider(spider: Spider, world: WorldState) {
     prey.poisonedTicks += Math.round(
       (spider.dominant ? 34 : 20) * profile.spiderDamage,
     );
-    prey.integrity -=
-      (spider.dominant ? 0.42 : 0.3) * profile.spiderDamage;
+    prey.integrity -= (spider.dominant ? 0.42 : 0.3) * profile.spiderDamage;
     if (prey.integrity <= 0 || prey.poisonedTicks > 38) {
       spider.state = "consume";
       killAgent(world, prey, spider);
