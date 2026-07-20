@@ -1259,12 +1259,35 @@ function Webs() {
 function OrderMarker() {
   const marker = useGameStore((state) => state.orderMarker);
   const group = useRef<THREE.Group>(null);
+  const startTime = useRef(0);
+  const prevSerial = useRef(0);
+
   useFrame(({ clock }) => {
-    if (!group.current) return;
-    const time = clock.elapsedTime;
-    const pulse = 1 + Math.sin(time * 8) * 0.15;
-    group.current.scale.setScalar(pulse);
-    group.current.rotation.y = time * 2.5;
+    if (!group.current || !marker) return;
+    
+    // Detectar nueva orden
+    if (marker.serial !== prevSerial.current) {
+      prevSerial.current = marker.serial;
+      startTime.current = clock.elapsedTime;
+    }
+
+    const timeSinceOrder = clock.elapsedTime - startTime.current;
+    if (timeSinceOrder > 1.2) {
+      group.current.visible = false;
+      return;
+    }
+    group.current.visible = true;
+    
+    // Animación de expansión rápida y desvanecimiento
+    const progress = Math.min(1, timeSinceOrder / 1.2);
+    const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+    
+    group.current.scale.setScalar(1 + easeOutQuart * 2.5);
+    
+    const material = (group.current.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+    if (material) {
+      material.opacity = 0.85 * (1 - progress);
+    }
   });
   if (!marker) return null;
   const color =

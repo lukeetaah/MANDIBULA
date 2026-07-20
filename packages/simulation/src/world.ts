@@ -750,6 +750,25 @@ function updateAnt(agent: Agent, world: WorldState) {
     agent.task = "idle";
     return;
   }
+  
+  // Evasión dinámica de obstáculos masivos (Arañas y Porotermes)
+  if (agent.faction === "acromyrmex" || agent.faction === "rival") {
+    const obstacles = world.agents.filter(o => o.alive && o.kind === "termite");
+    for (const obs of obstacles) {
+      if (distanceSq(agent.position, obs.position) < 6) {
+        const away = { x: agent.position.x - obs.position.x, z: agent.position.z - obs.position.z };
+        steer(agent, { x: agent.position.x + away.x, z: agent.position.z + away.z }, speed * 1.5);
+      }
+    }
+  }
+
+  // Comportamiento de Escarabajo: Degradación de rastros
+  if (agent.kind === "beetle") {
+    const nearbyPheromones = world.pheromones.filter(p => distanceSq(p.position, agent.position) < 8);
+    for (const p of nearbyPheromones) {
+      p.intensity *= 0.85; // Borra rastros químicos
+    }
+  }
   const nearbySpider = world.spiders
     .filter(
       (spider) =>
@@ -882,6 +901,11 @@ function updateAnt(agent: Agent, world: WorldState) {
     }
   } else if (agent.carrying > 0 || agent.task === "return") {
     steer(agent, agent.faction === "rival" ? RIVAL_NEST : NEST, speed);
+    
+    // Rastros emergentes de forrajeo
+    if (agent.carrying > 0 && agent.faction === "acromyrmex" && world.tick % 20 === 0) {
+      emitPheromone(world, agent, "forage", agent.position, 10, 0.4);
+    }
     if (
       distanceSq(
         agent.position,
@@ -1003,13 +1027,21 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
       activeWasps < profile.attackerLimit
         ? world.agents
             .filter(
-              (candidate) =>
-                candidate.alive &&
-                candidate.kind === "ant" &&
-                candidate.faction === "acromyrmex" &&
-                distanceSq(agent.position, candidate.position) <
-                  196 * profile.spiderSpeed &&
-                (candidate.carrying > 0 || candidate.order !== "autonomous"),
+              (candidate) => {
+                if (!candidate.alive || candidate.kind !== "ant" || candidate.faction !== "acromyrmex") return false;
+                if (distanceSq(agent.position, candidate.position) >= 196 * profile.spiderSpeed) return false;
+                if (candidate.carrying === 0 && candidate.order === "autonomous") return false;
+                
+                // Filtro de aislamiento: solo caza hormigas con menos de 3 compañeras cerca
+                const nearbyAllies = world.agents.filter(other => 
+                  other.alive && 
+                  other.faction === "acromyrmex" && 
+                  other.id !== candidate.id &&
+                  distanceSq(other.position, candidate.position) < 16
+                ).length;
+                
+                return nearbyAllies < 3;
+              }
             )
             .sort(
               (a, b) =>
@@ -1024,7 +1056,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         event(
           world,
           "fauna-attack",
-          "Vespula interceptó una obrera expuesta",
+          "Una avispa (Vespula) detectó una obrera expuesta y se lanzó al ataque",
           exposedAnt.id,
         );
       agent.targetId = exposedAnt.id;
@@ -1048,7 +1080,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         exposedAnt.task = "flee";
         agent.energy = clamp(agent.energy - 0.028, 0, 1);
         if (exposedAnt.integrity <= 0)
-          removeAgent(world, exposedAnt, "Vespula derribó una obrera aislada");
+          removeAgent(world, exposedAnt, "Una avispa derribó a la obrera aislada");
       }
       return;
     }
@@ -1068,7 +1100,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         event(
           world,
           "termite-sealed",
-          "Porotermes selló un corredor",
+          "Las termitas (Porotermes) sellaron su túnel por miedo a las arañas",
           agent.id,
         );
       return;
@@ -1093,7 +1125,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         event(
           world,
           "pollination",
-          "Bombus sostuvo el circuito floral del mallín",
+          "Un abejorro (Bombus) polinizó una flor y renovó el néctar local",
           agent.id,
         );
       }
@@ -1195,7 +1227,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
       event(
         world,
         "bombus-rerouted",
-        "Bombus cambió su circuito floral",
+        "El abejorro esquivó una tela de araña y desvió su circuito floral",
         agent.id,
       );
   } else {
@@ -1538,6 +1570,16 @@ function updateEconomy(world: WorldState) {
     0,
     1,
   );
+
+  // Auto-preservación del cultivo
+  if (world.fungusHealth < 0.25 && world.colonyPriority !== "forage" && world.tick % 600 === 0) {
+    world.colonyPriority = "forage";
+    event(
+      world,
+      "phase-changed",
+      "¡Estado crítico del hongo! Las autónomas cambian a recolección urgente."
+    );
+  }
   if (world.seasonPhase === 1 && world.colonyBiomass >= 18) {
     world.seasonPhase = 2;
     event(

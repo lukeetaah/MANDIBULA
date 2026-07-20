@@ -76,37 +76,37 @@ const signalLabels = {
 
 const faunaProfiles = {
   wasp: {
-    name: "VESPULA",
+    name: "VESPULA (Avispa)",
     role: "INTERCEPTORA AÉREA",
     effect:
-      "Hostiga arañas pequeñas y puede interceptar obreras expuestas con carga.",
+      "Hostiga arañas pequeñas y puede cazar hormigas obreras aisladas. Mantené a tu patrulla unida.",
   },
   bumblebee: {
-    name: "BOMBUS",
+    name: "BOMBUS (Abejorro)",
     role: "CIRCUITO FLORAL",
-    effect: "Mantiene el néctar del mallín y detecta telas en vuelo.",
+    effect: "Inofensivo. Poliniza flores del mallín y suele evitar zonas pobladas o telas de araña.",
   },
   termite: {
-    name: "POROTERMES",
+    name: "POROTERMES (Termita)",
     role: "INGENIERÍA DE MADERA",
-    effect: "Sella corredores cuando percibe vibraciones de depredador.",
+    effect: "Sella corredores y bloquea el paso cuando percibe vibraciones de depredadores (arañas).",
   },
   fly: {
     name: "MOSCA DE ESTEPA",
     role: "VECTOR DE RESIDUOS",
     effect:
-      "Es presa de las tejedoras; con mala higiene alcanza los residuos y daña el cultivo.",
+      "Presa fácil. Si la higiene del nido baja mucho, buscará la basura y contaminará el hongo.",
   },
   beetle: {
     name: "ESCARABAJO CORREDOR",
     role: "DEPREDADOR TERRESTRE",
     effect:
-      "Persigue obreras aisladas a ras del suelo; una patrulla puede expulsarlo.",
+      "Caza a ras del suelo y borra tus rastros químicos. Una patrulla densa puede repelerlo.",
   },
   ant: {
-    name: "OTRA COLONIA",
+    name: "COLONIA RIVAL",
     role: "COMPETENCIA TERRITORIAL",
-    effect: "Disputa las fuentes sin recibir información privilegiada.",
+    effect: "Disputa tus fuentes de alimento y puede agotar recursos antes de que llegues.",
   },
 } as const;
 
@@ -169,14 +169,17 @@ function MiniMap() {
         {world.spiders
           .filter((spider) => spider.visible)
           .map((spider) => (
-            <i
+            <span
               key={spider.id}
-              className={`mini-danger ${spider.dominant ? "dominant" : ""}`}
+              className={`mini-danger-container ${spider.dominant ? "dominant" : ""}`}
               style={{
                 left: scaleX(spider.position.x),
                 top: scaleY(spider.position.z),
               }}
-            />
+            >
+              <i className="mini-danger-ping" />
+              <i className="mini-danger" />
+            </span>
           ))}
         {world.agents
           .filter((agent) => selectedIds.includes(agent.id))
@@ -668,6 +671,10 @@ export function HUD() {
           <span>
             <small>CLIMA</small>
             <b>{Math.round(world.temperature)}°</b>
+          </span>
+          <span className={`priority-badge priority-${world.colonyPriority}`}>
+            <small>PRIORIDAD</small>
+            <b>{world.colonyPriority === "forage" ? "HONGO" : world.colonyPriority === "brood" ? "CRÍA" : world.colonyPriority === "excavate" ? "EXCAVAR" : "DEFENSA"}</b>
           </span>
         </div>
         <div className="top-actions">
