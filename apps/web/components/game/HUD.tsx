@@ -7,6 +7,7 @@ import {
   type NestChamberType,
 } from "@mandibula/simulation";
 import { useGameStore } from "@/lib/game-store";
+import { audio } from "@/lib/audio";
 
 const tutorial = [
   {
@@ -530,6 +531,30 @@ export function HUD() {
   const sound = useGameStore((state) => state.settings.sound);
   const intenseSounds = useGameStore((state) => state.settings.intenseSounds);
   const subtitles = useGameStore((state) => state.settings.subtitles);
+
+  // Audio init on first interaction
+  useEffect(() => {
+    const init = () => { audio.init(); document.removeEventListener("click", init); };
+    document.addEventListener("click", init);
+    return () => document.removeEventListener("click", init);
+  }, []);
+
+  // Audio: phase changes and end game
+  const prevPhase = useRef(world.seasonPhase);
+  const prevStatus = useRef(world.status);
+  useEffect(() => {
+    if (world.seasonPhase !== prevPhase.current) {
+      prevPhase.current = world.seasonPhase;
+      if (world.seasonPhase === 4) audio.alert();
+      else audio.phaseComplete();
+    }
+    if (world.status !== prevStatus.current) {
+      prevStatus.current = world.status;
+      if (world.status === "victory" || world.status === "defeat")
+        audio.endGame(world.status === "victory");
+    }
+  }, [world.seasonPhase, world.status]);
+
   const selected = world.agents.filter((agent) =>
     selectedIds.includes(agent.id),
   );
@@ -593,13 +618,21 @@ export function HUD() {
             target: 7,
             note: "Excavá cámaras y sostené la cría; cosechar ya no alcanza.",
           }
-        : {
-            kicker: "III · PERSISTIR",
-            title: "Llegá completa al invierno.",
-            current: world.colonyBiomass,
-            target: 52,
-            note: "Territorio, higiene y depredadores deciden el desenlace.",
-          };
+        : world.seasonPhase === 3
+          ? {
+              kicker: "III · PERSISTIR",
+              title: "Llegá completa al invierno.",
+              current: world.colonyBiomass,
+              target: 52,
+              note: "Territorio, higiene y depredadores deciden el desenlace.",
+            }
+          : {
+              kicker: "⚡ TORMENTA",
+              title: "Sobreviví la caída térmica.",
+              current: world.fungusHealth,
+              target: 0.3,
+              note: "La estepa se congela. Protegé el hongo y conservá biomasa.",
+            };
   const observedAgent =
     observed?.kind === "agent"
       ? world.agents.find((agent) => agent.id === observed.id)
@@ -659,7 +692,7 @@ export function HUD() {
                 ? world.spiders.some((s) => s.agitation > 0.2)
                 : world.nest.hygiene < 0.4 || world.nest.moisture < 0.3
             }
-            onClick={() => setUnderground(!underground)}
+            onClick={() => { setUnderground(!underground); audio.layerSwitch(); }}
             aria-label={
               underground ? "Volver a superficie" : "Entrar al subsuelo"
             }
@@ -1076,14 +1109,33 @@ export function HUD() {
           <p>{world.statusReason}</p>
           <div className="end-stats">
             <span>
-              <b>{Math.floor(world.colonyBiomass)}</b>sustrato
+              <b>{Math.floor(world.colonyBiomass)}</b>biomasa
             </span>
             <span>
-              <b>{world.metrics.unitsConsumed}</b>consumidas
+              <b>{Math.round(world.fungusHealth * 100)}%</b>hongo
             </span>
             <span>
-              <b>{world.metrics.attacksAvoided}</b>evasiones
+              <b>{Math.round(world.nest.hygiene * 100)}%</b>higiene
             </span>
+            <span>
+              <b>{colony.length}</b>sobrevivientes
+            </span>
+            <span>
+              <b>{world.metrics.unitsConsumed}</b>perdidas
+            </span>
+            <span>
+              <b>{Math.round(world.broodHealth * 100)}%</b>cría
+            </span>
+          </div>
+          <div className="end-causes">
+            <small>CAUSAS PRINCIPALES</small>
+            {world.colonyBiomass < 20 && <p>⚠ Reserva de biomasa insuficiente para la tormenta.</p>}
+            {world.fungusHealth < 0.4 && <p>⚠ El jardín fúngico sufrió daño crítico.</p>}
+            {world.nest.hygiene < 0.4 && <p>⚠ La contaminación del nido debilitó la colonia.</p>}
+            {world.metrics.unitsConsumed > 8 && <p>⚠ Las pérdidas por fauna fueron altas.</p>}
+            {colony.length > 40 && world.fungusHealth > 0.5 && <p>✓ La colonia mantuvo masa crítica.</p>}
+            {world.nest.chambers.fungus > 1 && <p>✓ Infraestructura fúngica expandida.</p>}
+            {world.metrics.totalBiomassHarvested > 60 && <p>✓ Recolección eficiente durante la partida.</p>}
           </div>
           <button onClick={restart}>NUEVA COLONIA</button>
         </div>

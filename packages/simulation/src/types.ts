@@ -132,6 +132,11 @@ export interface Metrics {
   alliancesCreated: number;
   alliancesBroken: number;
   lossesByFaction: Record<FactionId, number>;
+  totalBiomassHarvested: number;
+  visitedUnderground: boolean;
+  priorityChanged: boolean;
+  minorThreatResolved: boolean;
+  routesEstablished: boolean;
 }
 
 export interface WorldState {
@@ -156,7 +161,7 @@ export interface WorldState {
   rivalBiomass: number;
   fungusHealth: number;
   broodHealth: number;
-  seasonPhase: 1 | 2 | 3;
+  seasonPhase: 1 | 2 | 3 | 4; // 1: Reactivate, 2: Inhabit, 3: Persist, 4: Storm (End)
   colonyPriority: ColonyPriority;
   nest: NestState;
   tutorialStep: number;
@@ -195,6 +200,8 @@ export interface SimEvent {
     | "priority-changed"
     | "difficulty-changed"
     | "phase-changed"
+    | "tutorial-step"
+    | "storm-started"
     | "match-ended";
   entityId?: number;
   message: string;
@@ -236,7 +243,8 @@ export type CommandType =
   | "FORM_EXPEDITION"
   | "EXPAND_NEST"
   | "SET_COLONY_PRIORITY"
-  | "RETURN_TO_NEST";
+  | "RETURN_TO_NEST"
+  | "VISIT_UNDERGROUND";
 
 export interface SimCommand {
   protocolVersion: 1;

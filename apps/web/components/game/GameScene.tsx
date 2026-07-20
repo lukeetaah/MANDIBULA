@@ -1602,21 +1602,21 @@ export function GameScene() {
       <RenderBudget />
       <color
         attach="background"
-        args={[underground ? "#100c09" : tactical ? "#18231d" : "#78908a"]}
+        args={[underground ? "#100c09" : world.seasonPhase === 4 ? "#2a363b" : tactical ? "#18231d" : "#78908a"]}
       />
       <fog
         attach="fog"
         args={[
-          underground ? "#100c09" : tactical ? "#18231d" : "#73847c",
-          46,
-          105,
+          underground ? "#100c09" : world.seasonPhase === 4 ? "#2a363b" : tactical ? "#18231d" : "#73847c",
+          world.seasonPhase === 4 ? 20 : 46,
+          world.seasonPhase === 4 ? 80 : 105,
         ]}
       />
-      <ambientLight intensity={tactical ? 1.08 : 1.28} color="#d9dfc0" />
-      <hemisphereLight intensity={0.65} color="#c8ded1" groundColor="#5c452b" />
+      <ambientLight intensity={tactical ? 1.08 : world.seasonPhase === 4 ? 0.6 : 1.28} color="#d9dfc0" />
+      <hemisphereLight intensity={world.seasonPhase === 4 ? 0.3 : 0.65} color="#c8ded1" groundColor="#5c452b" />
       <directionalLight
-        intensity={2.05}
-        color="#ffe1ae"
+        intensity={world.seasonPhase === 4 ? 0.8 : 2.05}
+        color={world.seasonPhase === 4 ? "#9ab4c2" : "#ffe1ae"}
         position={[-32, 46, 22]}
       />
       {underground ? (

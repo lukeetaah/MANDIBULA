@@ -124,6 +124,11 @@ function emptyMetrics(): WorldState["metrics"] {
       rival: 0,
       npc: 0,
     },
+    totalBiomassHarvested: 0,
+    visitedUnderground: false,
+    priorityChanged: false,
+    minorThreatResolved: false,
+    routesEstablished: false,
   };
 }
 
@@ -423,6 +428,7 @@ function nearestResource(
 function handleInteraction(world: WorldState, agent: Agent) {
   if (agent.carrying > 0 && distanceSq(agent.position, NEST) < 18) {
     world.colonyBiomass += agent.carrying;
+    world.metrics.totalBiomassHarvested += agent.carrying;
     world.mandate += agent.controlled ? 1 : 0.06;
     world.fungusHealth = clamp(
       world.fungusHealth + agent.carrying * 0.012,
@@ -474,6 +480,7 @@ function handleInteraction(world: WorldState, agent: Agent) {
     agent.carrying = 1;
     agent.task = "return";
     agent.destination = { ...NEST };
+    emitPheromone(world, agent, "forage", { ...agent.position }, 12, 0.6);
   }
 }
 
@@ -619,14 +626,33 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
       agent.faction === "acromyrmex"
     ) {
       world.colonyPriority = command.payload.priority;
+      world.metrics.priorityChanged = true;
       event(
         world,
         "priority-changed",
         `Prioridad colectiva: ${command.payload.priority}`,
         agent.id,
       );
+    } else if (command.type === "VISIT_UNDERGROUND") {
+      world.metrics.visitedUnderground = true;
+      world.tutorialStep = Math.max(world.tutorialStep, 6);
     }
   }
+}
+
+export function getTerrainAt(position: Vec2): { type: "estepa" | "mallin" | "pedregullo" | "roca"; speedMulti: number; humidityMulti: number } {
+  // Simple procedural regionalization using coords
+  const dist = distanceSq(position, { x: 0, z: 0 });
+  if (position.x > 10 && position.z > 15 && position.x < 35 && position.z < 35) {
+    return { type: "mallin", speedMulti: 0.8, humidityMulti: 1.5 }; // Humid and slow
+  }
+  if (position.x < -15 && position.z < -10) {
+    return { type: "pedregullo", speedMulti: 0.7, humidityMulti: 0.5 }; // Rocky and very slow
+  }
+  if (dist < 400 && position.x > -20 && position.x < 20) {
+    return { type: "estepa", speedMulti: 1.0, humidityMulti: 1.0 }; // Standard
+  }
+  return { type: "roca", speedMulti: 0.9, humidityMulti: 0.8 }; // Rough terrain
 }
 
 function updateClimate(world: WorldState) {
@@ -710,8 +736,10 @@ function removeAgent(world: WorldState, agent: Agent, message: string) {
 
 function updateAnt(agent: Agent, world: WorldState) {
   if (!agent.alive) return;
-  const speed =
+  const terrain = getTerrainAt(agent.position);
+  let speed =
     world.temperature < 7 ? 0.07 : world.temperature > 31 ? 0.1 : 0.14;
+  speed *= terrain.speedMulti;
   if (
     agent.faction === "rival" &&
     (world.tick < 900 || agent.id % 7 !== 0) &&
@@ -928,8 +956,11 @@ function lineDistanceSq(point: Vec2, a: Vec2, b: Vec2): number {
 function updateOtherFaction(agent: Agent, world: WorldState) {
   if (!agent.alive) return;
   const profile = difficultyProfile(world);
+  const terrain = getTerrainAt(agent.position);
   const flight =
     agent.kind === "wasp" || agent.kind === "bumblebee" || agent.kind === "fly";
+  const speedMulti = flight ? 1.0 : terrain.speedMulti;
+  
   if (agent.kind === "wasp") {
     const target = world.spiders
       .filter(
@@ -949,7 +980,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         x: target.position.x + Math.sin(world.tick * 0.08 + agent.id) * 2,
         z: target.position.z + Math.cos(world.tick * 0.08 + agent.id) * 2,
       };
-      steer(agent, pass, 0.24);
+      steer(agent, pass, 0.24 * speedMulti);
       agent.position.x += agent.velocity.x;
       agent.position.z += agent.velocity.z;
       agent.energy = clamp(agent.energy - 0.0018, 0, 1);
@@ -998,7 +1029,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         );
       agent.targetId = exposedAnt.id;
       agent.task = "attack";
-      steer(agent, exposedAnt.position, 0.2);
+      steer(agent, exposedAnt.position, 0.2 * speedMulti);
       agent.position.x += agent.velocity.x;
       agent.position.z += agent.velocity.z;
       if (
@@ -1056,7 +1087,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         x: flower.position.x + Math.sin(world.tick * 0.018 + agent.id) * 3.2,
         z: flower.position.z + Math.cos(world.tick * 0.016 + agent.id) * 2.4,
       };
-      steer(agent, circuit, 0.13);
+      steer(agent, circuit, 0.13 * speedMulti);
       if ((world.tick + agent.id) % 420 === 0 && flower.amount < 64) {
         flower.amount += 1;
         event(
@@ -1104,7 +1135,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         );
       agent.targetId = exposedAnt.id;
       agent.task = "attack";
-      steer(agent, exposedAnt.position, 0.105);
+      steer(agent, exposedAnt.position, 0.105 * speedMulti);
       agent.position.x += agent.velocity.x;
       agent.position.z += agent.velocity.z;
       if (
@@ -1131,7 +1162,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     }
   }
   if (agent.kind === "fly" && world.nest.wasteLoad > 0.45) {
-    steer(agent, NEST, 0.095);
+    steer(agent, NEST, 0.095 * speedMulti);
     agent.position.x += agent.velocity.x;
     agent.position.z += agent.velocity.z;
     agent.task = "forage";
@@ -1172,13 +1203,13 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     [world.rngState, jitter] = randomRange(world.rngState, -0.09, 0.09);
     agent.position.x = clamp(
       agent.position.x +
-        Math.sin(world.tick * 0.018 + agent.id) * 0.055 +
-        jitter * 0.05,
+        (Math.sin(world.tick * 0.018 + agent.id) * 0.055 +
+        jitter * 0.05) * speedMulti,
       -55,
       55,
     );
     agent.position.z = clamp(
-      agent.position.z + Math.cos(world.tick * 0.015 + agent.id) * 0.045,
+      agent.position.z + Math.cos(world.tick * 0.015 + agent.id) * 0.045 * speedMulti,
       -45,
       45,
     );
@@ -1543,12 +1574,61 @@ function updateEconomy(world: WorldState) {
     endMatch(world, "defeat", "La colonia rival dominó la red de recursos");
   if (world.fungusHealth <= 0.05)
     endMatch(world, "defeat", "El cultivo colapsó por falta de sustrato");
-  if (world.tick >= 12000)
+  if (world.tick >= 12000 && world.seasonPhase < 4)
     endMatch(
       world,
       world.colonyBiomass > world.rivalBiomass ? "victory" : "defeat",
       "La helada cerró la ventana de forrajeo",
     );
+}
+
+function updateCampaign(world: WorldState) {
+  if (world.status !== "playing") return;
+
+  if (world.seasonPhase === 1) {
+    if (
+      world.metrics.totalBiomassHarvested >= 30 &&
+      world.fungusHealth > 0.4 &&
+      world.metrics.visitedUnderground &&
+      world.metrics.priorityChanged &&
+      world.metrics.minorThreatResolved
+    ) {
+      world.seasonPhase = 2;
+      event(world, "phase-changed", "Fase 2: Habitar - La colonia se establece", undefined);
+    }
+  } else if (world.seasonPhase === 2) {
+    const hasEnoughChambers = world.nest.chambers.fungus > 1 || world.nest.chambers.nursery > 1;
+    const isHealthy = world.fungusHealth > 0.6 && world.broodHealth > 0.6 && world.nest.hygiene > 0.5;
+    if (
+      hasEnoughChambers &&
+      isHealthy &&
+      world.tick > 4500 &&
+      world.metrics.routesEstablished
+    ) {
+      world.seasonPhase = 3;
+      event(world, "phase-changed", "Fase 3: Persistir - La colonia prospera", undefined);
+    }
+  } else if (world.seasonPhase === 3) {
+    if (world.tick > 8500) {
+      world.seasonPhase = 4;
+      event(world, "storm-started", "Tormenta patagónica: Caída térmica drástica", undefined);
+    }
+  } else if (world.seasonPhase === 4) {
+    world.temperature = clamp(world.temperature - 0.05, 2, 20);
+    world.rain = clamp(world.rain + 0.005, 0, 1);
+    world.humidity = clamp(world.humidity + 0.01, 0, 1);
+    
+    if (world.tick > 10500) {
+      const survived = world.colonyBiomass > 20 && world.fungusHealth > 0.3 && world.nest.hygiene > 0.3;
+      if (survived) {
+        endMatch(world, "victory", `La colonia conservó suficiente biomasa y calor para atravesar la tormenta. Sobrevivientes: ${world.agents.filter(a => a.alive && a.faction === "acromyrmex").length}`);
+      } else {
+        if (world.colonyBiomass <= 20) endMatch(world, "defeat", "La reserva de biomasa se agotó durante la tormenta.");
+        else if (world.fungusHealth <= 0.3) endMatch(world, "defeat", "El hongo colapsó por exceso de frío y humedad.");
+        else endMatch(world, "defeat", "La contaminación de la colonia durante la tormenta fue letal.");
+      }
+    }
+  }
 }
 
 export function stepWorld(
@@ -1577,6 +1657,7 @@ export function stepWorld(
   updateAlliance(world);
   updateAuthority(world);
   updateEconomy(world);
+  updateCampaign(world);
   world.tick += 1;
   return world;
 }
