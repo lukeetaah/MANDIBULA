@@ -406,6 +406,30 @@ button {
   font: 500 16px/1 "Barlow Condensed";
   color: #e2e7d3;
 }
+.trend-span {
+  position: relative;
+}
+.trend-icon {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: bold;
+}
+.trend-up .trend-icon::after {
+  content: "↗";
+  color: var(--lichen);
+}
+.trend-down .trend-icon::after {
+  content: "↘";
+  color: var(--danger);
+}
+.trend-stable .trend-icon::after {
+  content: "→";
+  color: rgba(137, 146, 127, 0.4);
+}
 .priority-badge {
   border-left: 2px solid var(--lichen);
 }
@@ -963,6 +987,20 @@ button {
   color: var(--cyan);
   font-size: 7px;
   letter-spacing: 0.13em;
+}
+.dossier-state {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 6px;
+  background: rgba(215, 180, 88, 0.15);
+  color: var(--amber);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  border-left: 2px solid var(--amber);
+}
+.dossier-state-pill {
+  color: var(--amber) !important;
+  font-weight: 500;
 }
 .dossier-functions {
   display: grid;
@@ -1698,6 +1736,33 @@ button {
 .end-stats b {
   color: var(--ink);
   font: 600 24px/1 "Barlow Condensed";
+}
+.nest-vitals b {
+  display: block;
+  color: var(--text);
+  font: 500 16px/1 "Barlow Condensed";
+}
+.nest-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.nest-warnings p {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid;
+}
+.nest-warnings .warning {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: rgba(215, 180, 88, 0.1);
+}
+.nest-warnings .stable {
+  color: #89927f;
+  border-color: #89927f;
 }
 .diagnostics {
   position: absolute;

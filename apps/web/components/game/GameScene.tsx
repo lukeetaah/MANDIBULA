@@ -690,8 +690,16 @@ function SpiderBody({ id }: { id: number }) {
 
 function Pheromone({ field }: { field: PheromoneField }) {
   const color = signalColors[field.type];
+  const group = useRef<THREE.Group>(null);
+  
+  useFrame(({ clock }) => {
+    if (!group.current) return;
+    const pulse = 1 + Math.sin(clock.elapsedTime * 2 + field.id) * 0.05;
+    group.current.scale.setScalar(pulse);
+  });
+
   return (
-    <group position={[field.position.x, 0.05, field.position.z]}>
+    <group ref={group} position={[field.position.x, 0.05, field.position.z]}>
       {[0.44, 0.72, 1].map((factor) => (
         <mesh
           key={factor}
@@ -702,7 +710,7 @@ function Pheromone({ field }: { field: PheromoneField }) {
           <meshBasicMaterial
             color={color}
             transparent
-            opacity={Math.max(0.04, field.intensity * (0.22 - factor * 0.08))}
+            opacity={Math.max(0.04, field.intensity * (0.28 - factor * 0.06))}
             depthWrite={false}
           />
         </mesh>

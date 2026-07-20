@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   checksumWorld,
   type ColonyPriority,
@@ -109,6 +109,27 @@ const faunaProfiles = {
     effect: "Disputa tus fuentes de alimento y puede agotar recursos antes de que llegues.",
   },
 } as const;
+
+const spiderStateMap: Record<string, string> = {
+  shelter: "Refugiándose",
+  explore: "Patrullando",
+  detect: "Alerta",
+  stalk: "Acechando",
+  strike: "Atacando",
+  sated: "Saciada",
+  retreat: "Huyendo",
+};
+
+const agentTaskMap: Record<string, string> = {
+  idle: "Latente",
+  move: "En tránsito",
+  forage: "Recolección",
+  return: "Retornando",
+  flee: "Evadiendo",
+  defend: "Defendiendo",
+  attack: "Hostigando",
+  sealed: "Cerrando paso",
+};
 
 const chamberCopy = {
   fungus: ["JARDÍN FÚNGICO", "amortigua hambre y estabiliza el cultivo"],
@@ -501,6 +522,23 @@ function Diagnostics() {
   );
 }
 
+function useTrend(value: number, threshold: number = 0.01) {
+  const prev = useRef(value);
+  const [trend, setTrend] = useState<"up" | "down" | "stable">("stable");
+
+  useEffect(() => {
+    const diff = value - prev.current;
+    if (Math.abs(diff) >= threshold) {
+      setTrend(diff > 0 ? "up" : "down");
+      prev.current = value;
+    } else if (Math.abs(diff) < threshold / 2) {
+      setTrend("stable");
+    }
+  }, [value, threshold]);
+
+  return trend;
+}
+
 export function HUD() {
   const world = useGameStore((state) => state.world);
   const selectedIds = useGameStore((state) => state.selectedIds);
@@ -656,21 +694,25 @@ export function HUD() {
           </div>
         </div>
         <div className="world-pulse">
-          <span>
+          <span className={`trend-span trend-${useTrend(world.fungusHealth, 0.01)}`}>
             <small>CULTIVO</small>
             <b>{Math.round(world.fungusHealth * 100)}%</b>
+            <i className="trend-icon" />
           </span>
-          <span>
+          <span className={`trend-span trend-${useTrend(world.colonyBiomass, 1)}`}>
             <small>BIOMASA</small>
             <b>{Math.floor(world.colonyBiomass)}</b>
+            <i className="trend-icon" />
           </span>
-          <span>
+          <span className={`trend-span trend-${useTrend(colony.length, 1)}`}>
             <small>OBRERAS</small>
             <b>{colony.length}</b>
+            <i className="trend-icon" />
           </span>
-          <span>
+          <span className={`trend-span trend-${useTrend(world.temperature, 0.5)}`}>
             <small>CLIMA</small>
             <b>{Math.round(world.temperature)}°</b>
+            <i className="trend-icon" />
           </span>
           <span className={`priority-badge priority-${world.colonyPriority}`}>
             <small>PRIORIDAD</small>
@@ -783,6 +825,20 @@ export function HUD() {
               RESIDUOS <b>{Math.round(world.nest.wasteLoad * 100)}%</b>
             </span>
           </div>
+          <div className="nest-warnings">
+            {world.nest.hygiene < 0.4 && (
+              <p className="warning">⚠ Higiene baja: La cría enferma y reduce la eficiencia del enjambre.</p>
+            )}
+            {world.nest.moisture < 0.3 && (
+              <p className="warning">⚠ Humedad crítica: El jardín fúngico se seca perdiendo salud rápidamente.</p>
+            )}
+            {world.nest.wasteLoad > 0.7 && (
+              <p className="warning">⚠ Exceso de residuos: Drena fuertemente el cultivo y atrae moscas.</p>
+            )}
+            {world.nest.hygiene >= 0.4 && world.nest.moisture >= 0.3 && world.nest.wasteLoad <= 0.7 && (
+              <p className="stable">✓ Ecosistema subterráneo estable.</p>
+            )}
+          </div>
           <div className="chamber-grid">
             {(
               Object.entries(chamberCopy) as [
@@ -847,9 +903,12 @@ export function HUD() {
                     ? "Corredora dominante"
                     : "Corredora terrestre"}
               </h2>
+              <b className="dossier-state">
+                ESTADO · {spiderStateMap[observedSpider.state] || observedSpider.state.toUpperCase()}
+              </b>
               <p>
-                {observedSpider.state === "sated"
-                  ? "Está saciada y busca refugio: combatir ahora desperdicia obreras."
+                {observedSpider.state === "sated" || observedSpider.state === "retreat"
+                  ? "Se retira del conflicto. Atacar ahora desperdicia obreras."
                   : observedSpider.dominant
                     ? "Controla un corredor. Rodearla sirve para expulsar, no para vaciar una barra."
                     : "Puede aislar una patrulla; masa, terreno y retirada importan."}
@@ -889,7 +948,9 @@ export function HUD() {
                 <span>
                   INTEGRIDAD <Meter value={observedAgent.integrity} />
                 </span>
-                <span>CONDUCTA · {observedAgent.task.toUpperCase()}</span>
+                <span className="dossier-state-pill">
+                  CONDUCTA · {agentTaskMap[observedAgent.task] || observedAgent.task.toUpperCase()}
+                </span>
               </div>
               <div className="dossier-actions">
                 {(["wasp", "fly", "beetle"] as const).includes(
