@@ -2,13 +2,16 @@
 
 import {
   createWorld,
+  configureDifficulty,
   restoreSnapshot,
   serializeSnapshot,
   stepWorld,
   type PheromoneType,
   type ColonyPriority,
+  type Difficulty,
   type NestChamberType,
   type SimCommand,
+  type SimEvent,
   type Vec2,
   type WorldState,
 } from "@mandibula/simulation";
@@ -26,6 +29,15 @@ export interface AccessibilitySettings {
   subtitles: boolean;
   sound: boolean;
   intenseSounds: boolean;
+  guidedPauses: boolean;
+}
+
+export interface CoachCard {
+  event: SimEvent;
+  title: string;
+  body: string;
+  response: string;
+  tone: "warning" | "danger" | "growth";
 }
 
 export interface SelectionBox {
@@ -54,7 +66,10 @@ interface GameStore {
   signalRadius: number;
   signalType: PheromoneType;
   timeScale: 1 | 2 | 3 | 6;
+  difficulty: Difficulty;
   underground: boolean;
+  coach: CoachCard | null;
+  coachedEvents: SimEvent["type"][];
   observed: { kind: "agent" | "spider"; id: number } | null;
   fps: number;
   settings: AccessibilitySettings;
@@ -76,6 +91,7 @@ interface GameStore {
   setSignalRadius: (value: number) => void;
   cycleSignal: () => void;
   setTimeScale: (value: 1 | 2 | 3 | 6) => void;
+  setDifficulty: (value: Difficulty) => void;
   setUnderground: (value: boolean) => void;
   inspect: (kind: "agent" | "spider", id: number) => void;
   clearInspection: () => void;
@@ -89,6 +105,7 @@ interface GameStore {
     value: AccessibilitySettings[K],
   ) => void;
   togglePause: () => void;
+  dismissCoach: () => void;
   save: () => void;
 }
 
@@ -102,6 +119,63 @@ const defaultSettings: AccessibilitySettings = {
   subtitles: true,
   sound: true,
   intenseSounds: false,
+  guidedPauses: true,
+};
+
+const coachCopy: Partial<
+  Record<
+    SimEvent["type"],
+    Omit<CoachCard, "event">
+  >
+> = {
+  "predator-sign": {
+    title: "El paisaje acaba de avisarte",
+    body:
+      "La caída del tránsito y las vibraciones anticipan un depredador. Todavía no es un ataque: es tiempo de reagrupar.",
+    response:
+      "Elegí una patrulla, marcá ALARMA con Q o volvé al nido con R.",
+    tone: "warning",
+  },
+  "spider-attack": {
+    title: "Una araña eligió una presa",
+    body:
+      "No está atacando a toda la colonia. Sigue vibraciones de una obrera o de una ruta concreta.",
+    response:
+      "Retirá la patrulla aislada o rodeala con al menos diez obreras.",
+    tone: "danger",
+  },
+  "fauna-attack": {
+    title: "Un cazador entró en la ruta",
+    body:
+      "Vespula y los escarabajos prefieren obreras expuestas. La colonia no necesita pelear todas las veces.",
+    response:
+      "Seleccioná una patrulla y usá AHUYENTAR, o cambiá el corredor de cosecha.",
+    tone: "danger",
+  },
+  "waste-contaminated": {
+    title: "Los residuos están atrayendo moscas",
+    body:
+      "La higiene dejó de ser un número: el bolsón saturado permite que la contaminación alcance el jardín.",
+    response:
+      "Entrá al SUBSUELO con B y mejorá el bolsón de residuos.",
+    tone: "warning",
+  },
+  "agent-died": {
+    title: "La colonia perdió una obrera",
+    body:
+      "Una baja no termina la partida. Revisá si la ruta quedó expuesta antes de mandar reemplazos.",
+    response:
+      "Pausá la cosecha peligrosa, reagrupá y observá el depredador.",
+    tone: "danger",
+  },
+  "phase-changed": {
+    title: "La colonia cambió de necesidad",
+    body:
+      "Superaste una etapa. A partir de ahora importa tanto la arquitectura como la cantidad cosechada.",
+    response:
+      "Abrí el subsuelo y elegí una prioridad antes de acelerar el tiempo.",
+    tone: "growth",
+  },
 };
 
 function loadWorld(): WorldState | null {
@@ -144,7 +218,7 @@ function commandableIds(state: GameStore): number[] {
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
-  world: createWorld(0x1a2b3c4d),
+  world: createWorld(0x1a2b3c4d, "gentle"),
   started: false,
   tactical: false,
   helpOpen: false,
@@ -156,25 +230,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
   signalRadius: 5,
   signalType: "forage",
   timeScale: 1,
+  difficulty: "gentle",
   underground: false,
+  coach: null,
+  coachedEvents: [],
   observed: null,
   fps: 60,
   settings: defaultSettings,
   pending: [],
-  begin: (resume = false) =>
+  begin: (resume = false) => {
+    const chosenDifficulty = get().difficulty;
+    const loaded = resume ? loadWorld() : null;
+    const world = loaded ?? createWorld(0x1a2b3c4d, chosenDifficulty);
     set({
       started: true,
-      helpOpen: !resume,
+      helpOpen: false,
       selectedIds: [],
       selectionBox: null,
-      world: resume
-        ? (loadWorld() ?? createWorld(0x1a2b3c4d))
-        : createWorld(0x1a2b3c4d),
-    }),
+      difficulty: world.difficulty,
+      coach: null,
+      coachedEvents: [],
+      world,
+    });
+  },
   restart: () => {
     localStorage.removeItem(SAVE_KEY);
+    const difficulty = get().difficulty;
     set({
-      world: createWorld(0x1a2b3c4d),
+      world: createWorld(0x1a2b3c4d, difficulty),
       started: true,
       helpOpen: true,
       tactical: false,
@@ -183,6 +266,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedIds: [],
       selectionBox: null,
       orderMarker: null,
+      coach: null,
+      coachedEvents: [],
       pending: [],
     });
   },
@@ -194,16 +279,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state.world.status !== "playing"
     )
       return;
-    const world = structuredClone(state.world);
+    const world = { ...state.world };
     for (let index = 0; index < state.timeScale; index += 1)
       stepWorld(world, index === 0 ? state.pending : []);
     const alive = new Set(
       world.agents.filter((agent) => agent.alive).map((agent) => agent.id),
     );
+    const guidedEvent = world.eventLog.find(
+      (item) =>
+        item.tick >= state.world.tick &&
+        coachCopy[item.type] &&
+        !state.coachedEvents.includes(item.type),
+    );
+    const copy = guidedEvent ? coachCopy[guidedEvent.type] : undefined;
+    if (guidedEvent && copy && state.settings.guidedPauses) world.paused = true;
     set({
       world,
       pending: [],
       selectedIds: state.selectedIds.filter((id) => alive.has(id)),
+      ...(guidedEvent && copy && state.settings.guidedPauses
+        ? {
+            coach: { event: guidedEvent, ...copy },
+            coachedEvents: [...state.coachedEvents, guidedEvent.type],
+          }
+        : {}),
     });
     if (world.tick % 50 === 0)
       localStorage.setItem(SAVE_KEY, serializeSnapshot(world));
@@ -336,6 +435,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ? { ...state.world, tutorialStep: 6 }
           : state.world,
     })),
+  setDifficulty: (difficulty) =>
+    set((state) => {
+      const world = structuredClone(state.world);
+      configureDifficulty(world, difficulty);
+      return { difficulty, world };
+    }),
   setUnderground: (underground) =>
     set((state) => ({
       underground,
@@ -400,7 +505,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => ({ settings: { ...state.settings, [key]: value } })),
   togglePause: () =>
     set((state) => ({
+      coach: null,
       world: { ...state.world, paused: !state.world.paused },
+    })),
+  dismissCoach: () =>
+    set((state) => ({
+      coach: null,
+      world: { ...state.world, paused: false },
     })),
   save: () => localStorage.setItem(SAVE_KEY, serializeSnapshot(get().world)),
 }));

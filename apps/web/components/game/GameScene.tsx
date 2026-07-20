@@ -1,15 +1,14 @@
 "use client";
 
-import { Line } from "@react-three/drei";
+import { Line, useTexture } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type {
   Agent,
   PheromoneField,
   ResourcePatch,
-  Spider,
 } from "@mandibula/simulation";
 import { useGameStore } from "@/lib/game-store";
 
@@ -145,33 +144,44 @@ function createAntGeometry() {
 const ANT_GEOMETRY = createAntGeometry();
 const CARGO_GEOMETRY = new THREE.CircleGeometry(0.38, 7);
 
-function CargoLoads({ agents }: { agents: Agent[] }) {
+function CargoLoads() {
   const mesh = useRef<THREE.InstancedMesh>(null);
-  useEffect(() => {
+  useFrame(() => {
     if (!mesh.current) return;
+    const agents = useGameStore.getState().world.agents;
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion().setFromEuler(
       new THREE.Euler(0.08, 0.35, 0.15),
     );
     const scale = new THREE.Vector3(1, 1, 1);
-    agents.forEach((agent, index) => {
-      position.set(
-        agent.position.x,
-        Math.hypot(agent.position.x, agent.position.z) < 4.8 ? 1.08 : 0.49,
-        agent.position.z,
-      );
-      matrix.compose(position, quaternion, scale);
-      mesh.current!.setMatrixAt(index, matrix);
-    });
+    const hiddenScale = new THREE.Vector3(0, 0, 0);
+    let cargoIndex = 0;
+    
+    for (const agent of agents) {
+      if (agent.kind !== "ant") continue;
+      
+      if (agent.carrying > 0 && agent.alive) {
+        position.set(
+          agent.position.x,
+          Math.hypot(agent.position.x, agent.position.z) < 4.8 ? 1.08 : 0.49,
+          agent.position.z,
+        );
+        matrix.compose(position, quaternion, scale);
+        mesh.current.setMatrixAt(cargoIndex, matrix);
+      } else {
+        matrix.compose(position, quaternion, hiddenScale);
+        mesh.current.setMatrixAt(cargoIndex, matrix);
+      }
+      cargoIndex++;
+    }
     mesh.current.instanceMatrix.needsUpdate = true;
-    mesh.current.computeBoundingSphere();
-  }, [agents]);
-  if (!agents.length) return null;
+  });
+  
   return (
     <instancedMesh
       ref={mesh}
-      args={[CARGO_GEOMETRY, undefined, agents.length]}
+      args={[CARGO_GEOMETRY, undefined, 91]}
       castShadow
     >
       <meshStandardMaterial
@@ -183,26 +193,51 @@ function CargoLoads({ agents }: { agents: Agent[] }) {
   );
 }
 
-function AntColony({ agents }: { agents: Agent[] }) {
+function AntColony() {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const selectedIds = useGameStore((state) => state.selectedIds);
   const selectUnits = useGameStore((state) => state.selectUnits);
-  useEffect(() => {
+
+  const prevPositions = useRef<Map<number, THREE.Vector3>>(new Map());
+
+  useFrame((_, delta) => {
     if (!mesh.current) return;
+    const world = useGameStore.getState().world;
+    const agents = world.agents;
+    
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
     const color = new THREE.Color();
-    agents.forEach((agent, index) => {
+    
+    let antIndex = 0;
+    
+    for (const agent of agents) {
+      if (agent.kind !== "ant") continue;
+      
+      const prevPos = prevPositions.current.get(agent.id) || new THREE.Vector3(agent.position.x, 0, agent.position.z);
+      
+      // Interpolate position based on velocity (extrapolation for smoothness)
+      if (agent.alive && !world.paused) {
+         prevPos.x = THREE.MathUtils.lerp(prevPos.x, agent.position.x + agent.velocity.x * delta * 10, 0.5);
+         prevPos.z = THREE.MathUtils.lerp(prevPos.z, agent.position.z + agent.velocity.z * delta * 10, 0.5);
+      } else {
+         prevPos.x = agent.position.x;
+         prevPos.z = agent.position.z;
+      }
+      prevPositions.current.set(agent.id, prevPos);
+
       const atMound =
         agent.faction === "acromyrmex" &&
-        Math.hypot(agent.position.x, agent.position.z) < 4.8;
+        Math.hypot(prevPos.x, prevPos.z) < 4.8;
+      
       position.set(
-        agent.position.x,
+        prevPos.x,
         agent.alive ? (atMound ? 0.78 : 0.18) : 0.07,
-        agent.position.z,
+        prevPos.z,
       );
+      
       quaternion.setFromEuler(
         new THREE.Euler(
           0,
@@ -210,42 +245,59 @@ function AntColony({ agents }: { agents: Agent[] }) {
           agent.alive ? 0 : Math.PI / 2,
         ),
       );
+      
       const size = agent.alive
         ? agent.faction === "acromyrmex"
           ? 1
           : 0.88
         : 0.42;
       scale.setScalar(size);
+      
       matrix.compose(position, quaternion, scale);
-      mesh.current!.setMatrixAt(index, matrix);
+      mesh.current.setMatrixAt(antIndex, matrix);
+      
       color.set(agent.alive ? factionColors[agent.faction] : "#30291f");
-      mesh.current!.setColorAt(index, color);
-    });
+      mesh.current.setColorAt(antIndex, color);
+      
+      antIndex++;
+    }
+    
     mesh.current.instanceMatrix.needsUpdate = true;
     if (mesh.current.instanceColor)
       mesh.current.instanceColor.needsUpdate = true;
-    mesh.current.computeBoundingSphere();
-  }, [agents]);
+  });
 
   const onPointerDown = (event: ThreeEvent<PointerEvent>) => {
     if (event.button !== 0 || event.instanceId === undefined) return;
+    const world = useGameStore.getState().world;
+    const agents = world.agents.filter(a => a.kind === "ant");
     const agent = agents[event.instanceId];
     if (!agent?.alive || agent.faction !== "acromyrmex") return;
     event.stopPropagation();
-    selectUnits([agent.id], event.nativeEvent.shiftKey);
+    
+    if (event.nativeEvent.detail === 2) {
+      const radiusSq = 35 * 35; // Select ants within 35 units
+      const toSelect = agents
+        .filter(a => a.alive && a.faction === "acromyrmex" && 
+          Math.pow(a.position.x - agent.position.x, 2) + Math.pow(a.position.z - agent.position.z, 2) < radiusSq)
+        .map(a => a.id);
+      selectUnits(toSelect, event.nativeEvent.shiftKey);
+    } else {
+      selectUnits([agent.id], event.nativeEvent.shiftKey);
+    }
   };
 
   return (
     <>
       <instancedMesh
         ref={mesh}
-        args={[ANT_GEOMETRY, undefined, agents.length]}
+        args={[ANT_GEOMETRY, undefined, 91]} // 1 player + 62 acromyrmex + 28 rival = 91 ants
         castShadow
         onPointerDown={onPointerDown}
       >
-        <meshStandardMaterial color="#ffffff" roughness={0.76} />
+        <meshStandardMaterial color="#ffffff" roughness={0.76} flatShading />
       </instancedMesh>
-      {agents
+      {useGameStore.getState().world.agents
         .filter((agent) => selectedIds.includes(agent.id) && agent.alive)
         .map((agent) => (
           <mesh
@@ -262,9 +314,7 @@ function AntColony({ agents }: { agents: Agent[] }) {
             />
           </mesh>
         ))}
-      <CargoLoads
-        agents={agents.filter((agent) => agent.carrying > 0 && agent.alive)}
-      />
+      <CargoLoads />
     </>
   );
 }
@@ -341,20 +391,37 @@ const FAUNA_SCALE: Record<FaunaKind, number> = {
 
 const FaunaInstances = memo(function FaunaInstances({
   kind,
-  agents,
 }: {
   kind: FaunaKind;
-  agents: Agent[];
 }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const inspect = useGameStore((state) => state.inspect);
-  useEffect(() => {
+  
+  const prevPositions = useRef<Map<number, THREE.Vector3>>(new Map());
+
+  useFrame((_, delta) => {
     if (!mesh.current) return;
+    const world = useGameStore.getState().world;
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
-    agents.forEach((agent, index) => {
+    
+    let faunaIndex = 0;
+    for (const agent of world.agents) {
+      if (agent.kind !== kind) continue;
+      
+      const prevPos = prevPositions.current.get(agent.id) || new THREE.Vector3(agent.position.x, 0, agent.position.z);
+      
+      if (agent.alive && !world.paused) {
+         prevPos.x = THREE.MathUtils.lerp(prevPos.x, agent.position.x + agent.velocity.x * delta * 10, 0.5);
+         prevPos.z = THREE.MathUtils.lerp(prevPos.z, agent.position.z + agent.velocity.z * delta * 10, 0.5);
+      } else {
+         prevPos.x = agent.position.x;
+         prevPos.z = agent.position.z;
+      }
+      prevPositions.current.set(agent.id, prevPos);
+
       const ground = kind === "termite" || kind === "beetle";
       const altitude = ground
         ? kind === "beetle"
@@ -363,7 +430,9 @@ const FaunaInstances = memo(function FaunaInstances({
         : kind === "bumblebee"
           ? 1.8 + Math.sin(agent.id) * 0.22
           : 2.15 + Math.sin(agent.id * 2.1) * 0.28;
-      position.set(agent.position.x, agent.alive ? altitude : 0.1, agent.position.z);
+          
+      position.set(prevPos.x, agent.alive ? altitude : 0.1, prevPos.z);
+      
       quaternion.setFromEuler(
         new THREE.Euler(
           0,
@@ -371,89 +440,135 @@ const FaunaInstances = memo(function FaunaInstances({
           agent.alive ? 0 : Math.PI / 2,
         ),
       );
+      
       scale.setScalar(FAUNA_SCALE[kind] * (agent.alive ? 1 : 0.45));
       matrix.compose(position, quaternion, scale);
-      mesh.current!.setMatrixAt(index, matrix);
-    });
+      mesh.current.setMatrixAt(faunaIndex, matrix);
+      
+      faunaIndex++;
+    }
     mesh.current.instanceMatrix.needsUpdate = true;
-    mesh.current.computeBoundingSphere();
-  }, [agents, kind]);
+  });
 
   return (
     <instancedMesh
       ref={mesh}
-      args={[FAUNA_GEOMETRY[kind], undefined, agents.length]}
+      args={[FAUNA_GEOMETRY[kind], undefined, 8]} // max 8 per kind
       onPointerDown={(event) => {
         if (event.button !== 0 || event.instanceId === undefined) return;
+        const world = useGameStore.getState().world;
+        const agents = world.agents.filter(a => a.kind === kind);
         const agent = agents[event.instanceId];
         if (!agent?.alive) return;
         event.stopPropagation();
         inspect("agent", agent.id);
       }}
     >
-      <meshStandardMaterial vertexColors roughness={0.72} />
+      <meshStandardMaterial vertexColors roughness={0.72} flatShading />
     </instancedMesh>
   );
 });
 
-function FaunaPopulation({ agents }: { agents: Agent[] }) {
+function FaunaPopulation() {
   const observed = useGameStore((state) => state.observed);
-  const observedAgent =
-    observed?.kind === "agent"
-      ? agents.find((agent) => agent.id === observed.id && agent.alive)
-      : undefined;
+  
+  // Use state without reactively triggering every tick
+  useGameStore.getState();
+
+  const observedRef = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    if (observedRef.current && observed?.kind === "agent") {
+      const world = useGameStore.getState().world;
+      const agent = world.agents.find(a => a.id === observed.id);
+      if (agent && agent.alive) {
+        observedRef.current.position.set(agent.position.x, 0.08, agent.position.z);
+        observedRef.current.visible = true;
+      } else {
+        observedRef.current.visible = false;
+      }
+    } else if (observedRef.current) {
+      observedRef.current.visible = false;
+    }
+  });
+
   return (
     <>
       {FAUNA_KINDS.map((kind) => {
-        const population = agents.filter((agent) => agent.kind === kind);
-        return population.length ? (
-          <FaunaInstances key={kind} kind={kind} agents={population} />
-        ) : null;
+        return (
+          <FaunaInstances key={kind} kind={kind} />
+        );
       })}
-      {observedAgent && (
-        <mesh
-          position={[observedAgent.position.x, 0.08, observedAgent.position.z]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <ringGeometry args={[0.72, 0.86, 24]} />
-          <meshBasicMaterial color="#65d8cf" transparent opacity={0.9} />
-        </mesh>
-      )}
+      <mesh
+        ref={observedRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        visible={false}
+      >
+        <ringGeometry args={[0.72, 0.86, 24]} />
+        <meshBasicMaterial color="#65d8cf" transparent opacity={0.9} />
+      </mesh>
     </>
   );
 }
 
-function SpiderBody({ spider }: { spider: Spider }) {
+function SpiderBody({ id }: { id: number }) {
   const inspect = useGameStore((state) => state.inspect);
   const observed = useGameStore((state) => state.observed);
-  if (!spider.visible) return null;
-  const scale = spider.dominant
-    ? 2.2
-    : spider.guild === "orb-weaver"
-      ? 1.25
-      : 1;
-  const color = spider.dominant
-    ? "#211819"
-    : spider.guild === "orb-weaver"
-      ? "#743b25"
-      : "#4a3026";
+  const group = useRef<THREE.Group>(null);
+  const [staticProps, setStaticProps] = useState<{dominant: boolean, guild: string, visible: boolean, color: string, scale: number} | null>(null);
+
+  useEffect(() => {
+    const spider = useGameStore.getState().world.spiders.find(s => s.id === id);
+    if (spider) {
+      const scale = spider.dominant
+        ? 2.2
+        : spider.guild === "orb-weaver"
+          ? 1.25
+          : 1;
+      const color = spider.dominant
+        ? "#211819"
+        : spider.guild === "orb-weaver"
+          ? "#743b25"
+          : "#4a3026";
+      setStaticProps({ dominant: spider.dominant, guild: spider.guild, visible: spider.visible, color, scale });
+    }
+  }, [id]);
+
+  useFrame(() => {
+    if (!group.current) return;
+    const world = useGameStore.getState().world;
+    const spider = world.spiders.find(s => s.id === id);
+    if (!spider) return;
+    
+    group.current.visible = spider.visible;
+    if (spider.visible && !world.paused) {
+      group.current.position.x = THREE.MathUtils.lerp(group.current.position.x, spider.position.x, 0.1);
+      group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, spider.position.z, 0.1);
+    } else if (spider.visible) {
+      group.current.position.x = spider.position.x;
+      group.current.position.z = spider.position.z;
+    }
+  });
+
+  if (!staticProps) return null;
+  const { scale, color } = staticProps;
   return (
     <group
-      position={[spider.position.x, 0.28 * scale, spider.position.z]}
+      ref={group}
+      position={[0, 0.28 * scale, 0]}
       scale={scale}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.stopPropagation();
-        inspect("spider", spider.id);
+        inspect("spider", id);
       }}
     >
       <mesh castShadow position={[0, 0, 0.24]} scale={[0.8, 0.65, 1]}>
         <sphereGeometry args={[0.38, 10, 7]} />
-        <meshStandardMaterial color={color} roughness={0.82} />
+        <meshStandardMaterial color={color} roughness={0.82} flatShading />
       </mesh>
       <mesh castShadow position={[0, 0.04, -0.32]} scale={[1, 0.72, 1.25]}>
         <sphereGeometry args={[0.5, 12, 8]} />
-        <meshStandardMaterial color={color} roughness={0.88} />
+        <meshStandardMaterial color={color} roughness={0.88} flatShading />
       </mesh>
       {Array.from({ length: 8 }, (_, index) => {
         const side = index < 4 ? -1 : 1;
@@ -466,11 +581,11 @@ function SpiderBody({ spider }: { spider: Spider }) {
             rotation={[0, side * (0.62 + row * 0.15), Math.PI / 2]}
           >
             <capsuleGeometry args={[0.035, 0.78, 3, 5]} />
-            <meshStandardMaterial color={color} roughness={0.9} />
+            <meshStandardMaterial color={color} roughness={0.9} flatShading />
           </mesh>
         );
       })}
-      {observed?.kind === "spider" && observed.id === spider.id && (
+      {observed?.kind === "spider" && observed.id === id && (
         <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.9, 1.04, 32]} />
           <meshBasicMaterial color="#f06b4f" transparent opacity={0.92} />
@@ -504,6 +619,7 @@ function Pheromone({ field }: { field: PheromoneField }) {
 }
 
 function ProceduralTerrain() {
+  const paintedGround = useTexture("/art/patagonia-ground-painted.webp");
   const grassRef = useRef<THREE.InstancedMesh>(null);
   const rockRef = useRef<THREE.InstancedMesh>(null);
   const geometry = useMemo(() => {
@@ -538,6 +654,15 @@ function ProceduralTerrain() {
     plane.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     return plane;
   }, []);
+
+  useEffect(() => {
+    paintedGround.wrapS = THREE.RepeatWrapping;
+    paintedGround.wrapT = THREE.RepeatWrapping;
+    paintedGround.repeat.set(2.7, 2.35);
+    paintedGround.colorSpace = THREE.SRGBColorSpace;
+    paintedGround.anisotropy = 2;
+    paintedGround.needsUpdate = true;
+  }, [paintedGround]);
 
   useEffect(() => {
     const matrix = new THREE.Matrix4();
@@ -578,7 +703,12 @@ function ProceduralTerrain() {
   return (
     <>
       <mesh geometry={geometry} receiveShadow>
-        <meshStandardMaterial vertexColors roughness={1} metalness={0} />
+        <meshStandardMaterial
+          map={paintedGround}
+          roughness={1}
+          metalness={0}
+          flatShading
+        />
       </mesh>
       {[0, 1, 2, 3].map((ring) => (
         <Line
@@ -976,12 +1106,15 @@ function SilkWeb({
     [1, 4, 8, 11].forEach((index) => {
       const point = rim[index]!;
       const length = Math.hypot(point.x, point.y / squash) || 1;
-      line(
-        point.x,
-        point.y,
-        point.x + (point.x / length) * radius * 0.45,
-        point.y + (point.y / squash / length) * radius * 0.34,
-      );
+      const dirX = point.x / length;
+      const dirY = point.y / squash / length;
+      // Normal anchor
+      line(point.x, point.y, point.x + dirX * radius * 0.45, point.y + dirY * radius * 0.34);
+      
+      // Ground anchors for the lower half
+      if (point.y < 0) {
+        line(point.x, point.y, point.x + dirX * radius * 1.5, -2.4);
+      }
     });
 
     const result = new THREE.BufferGeometry();
@@ -1029,8 +1162,10 @@ function OrderMarker() {
   const group = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (!group.current) return;
-    const pulse = 1 + Math.sin(clock.elapsedTime * 5) * 0.09;
+    const time = clock.elapsedTime;
+    const pulse = 1 + Math.sin(time * 8) * 0.15;
     group.current.scale.setScalar(pulse);
+    group.current.rotation.y = time * 2.5;
   });
   if (!marker) return null;
   const color =
@@ -1046,11 +1181,11 @@ function OrderMarker() {
       position={[marker.position.x, 0.07, marker.position.z]}
     >
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.55, 0.68, 32]} />
+        <ringGeometry args={[0.55, 0.75, 32]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={0.82}
+          opacity={0.85}
           depthWrite={false}
         />
       </mesh>
@@ -1058,13 +1193,13 @@ function OrderMarker() {
         <mesh
           key={index}
           position={[
-            Math.cos((index * Math.PI) / 2) * 0.88,
+            Math.cos((index * Math.PI) / 2) * 1.05,
             0,
-            Math.sin((index * Math.PI) / 2) * 0.88,
+            Math.sin((index * Math.PI) / 2) * 1.05,
           ]}
           rotation={[-Math.PI / 2, 0, (-index * Math.PI) / 2]}
         >
-          <coneGeometry args={[0.12, 0.28, 3]} />
+          <coneGeometry args={[0.15, 0.35, 3]} />
           <meshBasicMaterial color={color} />
         </mesh>
       ))}
@@ -1393,14 +1528,10 @@ export function GameScene() {
           <Nest />
           <ResourceNodes />
           <Webs />
-          <AntColony
-            agents={world.agents.filter((agent) => agent.kind === "ant")}
-          />
-          <FaunaPopulation
-            agents={world.agents.filter((agent) => agent.kind !== "ant")}
-          />
+          <AntColony />
+          <FaunaPopulation />
           {world.spiders.map((spider) => (
-            <SpiderBody key={spider.id} spider={spider} />
+            <SpiderBody key={spider.id} id={spider.id} />
           ))}
           {(tactical || world.tutorialStep >= 4) &&
             world.pheromones.map((field) => (

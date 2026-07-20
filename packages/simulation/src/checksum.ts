@@ -17,6 +17,7 @@ export function checksumWorld(world: WorldState): string {
     tick: world.tick,
     nextId: world.nextId,
     status: world.status,
+    difficulty: world.difficulty,
     temperature: Math.round(world.temperature * 1000),
     humidity: Math.round(world.humidity * 1000),
     mandate: Math.round(world.mandate * 1000),
@@ -73,6 +74,7 @@ export function restoreSnapshot(snapshot: string): WorldState {
   )
     throw new Error("Snapshot incompatible");
   parsed.seasonPhase ??= 1;
+  parsed.difficulty ??= "balanced";
   parsed.colonyPriority ??= "forage";
   parsed.nest ??= {
     chambers: { fungus: 1, nursery: 1, ventilation: 1, waste: 0 },

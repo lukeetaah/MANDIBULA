@@ -30,6 +30,7 @@ export type SpiderState =
   | "retreat"
   | "relocate";
 export type MatchStatus = "playing" | "victory" | "defeat";
+export type Difficulty = "gentle" | "balanced" | "wild";
 export type NestChamberType = "fungus" | "nursery" | "ventilation" | "waste";
 export type ColonyPriority = "forage" | "brood" | "excavate" | "defend";
 
@@ -142,6 +143,7 @@ export interface WorldState {
   status: MatchStatus;
   statusReason: string;
   paused: boolean;
+  difficulty: Difficulty;
   temperature: number;
   humidity: number;
   wind: Vec2;
@@ -191,6 +193,7 @@ export interface SimEvent {
     | "waste-contaminated"
     | "nest-expanded"
     | "priority-changed"
+    | "difficulty-changed"
     | "phase-changed"
     | "match-ended";
   entityId?: number;

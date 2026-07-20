@@ -11,6 +11,8 @@ export default function GameClient() {
   const begin = useGameStore((state) => state.begin);
   const tick = useGameStore((state) => state.tick);
   const settings = useGameStore((state) => state.settings);
+  const difficulty = useGameStore((state) => state.difficulty);
+  const setDifficulty = useGameStore((state) => state.setDifficulty);
   const [canResume, setCanResume] = useState(false);
 
   useEffect(() => setCanResume(hasLocalSave()), []);
@@ -46,6 +48,27 @@ export default function GameClient() {
             No construís un imperio.{" "}
             <strong>Negociás con un ecosistema.</strong>
           </p>
+          <div className="difficulty-picker" aria-label="Dificultad">
+            <small>DIFICULTAD · PODÉS CAMBIARLA DURANTE LA PARTIDA</small>
+            <div>
+              {(
+                [
+                  ["gentle", "CALMA", "Aprende y reacciona"],
+                  ["balanced", "EQUILIBRIO", "Amenaza gradual"],
+                  ["wild", "SILVESTRE", "Sin protección"],
+                ] as const
+              ).map(([value, label, note]) => (
+                <button
+                  key={value}
+                  className={difficulty === value ? "active" : ""}
+                  onClick={() => setDifficulty(value)}
+                >
+                  <b>{label}</b>
+                  <span>{note}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="entry-actions">
             <button className="primary-action" onClick={() => begin(false)}>
               FUNDAR LA RED <span>→</span>

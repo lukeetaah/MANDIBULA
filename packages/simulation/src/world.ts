@@ -2,6 +2,7 @@ import { randomRange } from "./rng";
 import type {
   Agent,
   Alliance,
+  Difficulty,
   FactionId,
   PheromoneField,
   PheromoneType,
@@ -14,6 +15,33 @@ import type {
 const NEST: Vec2 = { x: 0, z: 0 };
 const RIVAL_NEST: Vec2 = { x: 37, z: -28 };
 const MAX_EVENTS = 80;
+
+const difficultyProfiles = {
+  gentle: {
+    economyDrain: 0.54,
+    spiderDamage: 0.55,
+    spiderSpeed: 0.72,
+    attackerLimit: 1,
+    predatorLimit: 1,
+  },
+  balanced: {
+    economyDrain: 0.78,
+    spiderDamage: 0.8,
+    spiderSpeed: 0.88,
+    attackerLimit: 2,
+    predatorLimit: 2,
+  },
+  wild: {
+    economyDrain: 1,
+    spiderDamage: 1,
+    spiderSpeed: 1,
+    attackerLimit: 3,
+    predatorLimit: 3,
+  },
+} as const;
+
+const difficultyProfile = (world: WorldState) =>
+  difficultyProfiles[world.difficulty];
 
 const distanceSq = (a: Vec2, b: Vec2) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
 const length = (v: Vec2) => Math.hypot(v.x, v.z);
@@ -99,7 +127,12 @@ function emptyMetrics(): WorldState["metrics"] {
   };
 }
 
-export function createWorld(seed = 0x5eed1234): WorldState {
+export function createWorld(
+  seed = 0x5eed1234,
+  difficulty: Difficulty = "balanced",
+): WorldState {
+  const initialFungus =
+    difficulty === "gentle" ? 0.84 : difficulty === "balanced" ? 0.78 : 0.72;
   const world: WorldState = {
     version: 1,
     seed: seed >>> 0,
@@ -109,6 +142,7 @@ export function createWorld(seed = 0x5eed1234): WorldState {
     status: "playing",
     statusReason: "",
     paused: false,
+    difficulty,
     temperature: 16,
     humidity: 0.32,
     wind: { x: 0.25, z: 0.05 },
@@ -119,7 +153,7 @@ export function createWorld(seed = 0x5eed1234): WorldState {
     authorityLevel: 1,
     colonyBiomass: 2,
     rivalBiomass: 0,
-    fungusHealth: 0.72,
+    fungusHealth: initialFungus,
     broodHealth: 0.8,
     seasonPhase: 1,
     colonyPriority: "forage",
@@ -163,7 +197,8 @@ export function createWorld(seed = 0x5eed1234): WorldState {
       }),
     );
   }
-  for (let i = 0; i < 7; i += 1)
+  const waspCount = difficulty === "gentle" ? 3 : difficulty === "balanced" ? 5 : 7;
+  for (let i = 0; i < waspCount; i += 1)
     world.agents.push(
       makeAgent(world, "wasp", "vespula", { x: -24 + i * 0.9, z: 28 }),
     );
@@ -220,8 +255,10 @@ export function createWorld(seed = 0x5eed1234): WorldState {
     wounds: 0,
     consumed: 0,
     visible: false,
-    warningTicks: 260,
-    nextArrivalTick: 0,
+    warningTicks:
+      difficulty === "gentle" ? 1_000 : difficulty === "balanced" ? 520 : 120,
+    nextArrivalTick:
+      difficulty === "gentle" ? 1_000 : difficulty === "balanced" ? 520 : 120,
   };
   const weaver: Spider = {
     id: id(world),
@@ -264,8 +301,18 @@ export function createWorld(seed = 0x5eed1234): WorldState {
     wounds: 0,
     consumed: 0,
     visible: false,
-    warningTicks: 1450,
-    nextArrivalTick: 1450,
+    warningTicks:
+      difficulty === "gentle"
+        ? 3_600
+        : difficulty === "balanced"
+          ? 2_400
+          : 1_450,
+    nextArrivalTick:
+      difficulty === "gentle"
+        ? 3_600
+        : difficulty === "balanced"
+          ? 2_400
+          : 1_450,
   };
   world.spiders.push(runner, weaver, dominant);
   world.webs.push(
@@ -285,6 +332,48 @@ export function createWorld(seed = 0x5eed1234): WorldState {
       wetness: 0,
       ownerId: weaver.id,
     },
+  );
+  return world;
+}
+
+export function configureDifficulty(
+  world: WorldState,
+  difficulty: Difficulty,
+): WorldState {
+  if (world.difficulty === difficulty) return world;
+  const rank: Record<Difficulty, number> = { gentle: 0, balanced: 1, wild: 2 };
+  const lowering = rank[difficulty] < rank[world.difficulty];
+  world.difficulty = difficulty;
+  if (lowering) {
+    for (const agent of world.agents) {
+      if (agent.kind !== "wasp" && agent.kind !== "beetle") continue;
+      agent.targetId = null;
+      if (agent.task === "attack") agent.task = "flee";
+    }
+    for (const spider of world.spiders) {
+      if (spider.dominant || difficulty === "gentle") {
+        spider.targetId = null;
+        if (spider.visible && spider.state !== "shelter") {
+          spider.agitation = Math.max(spider.agitation, 0.88);
+          spider.state = "retreat";
+        } else if (!spider.visible) {
+          const delay = difficulty === "gentle" ? 1_800 : 900;
+          spider.nextArrivalTick = Math.max(
+            spider.nextArrivalTick,
+            world.tick + delay,
+          );
+        }
+      }
+    }
+  }
+  event(
+    world,
+    "difficulty-changed",
+    difficulty === "gentle"
+      ? "El ecosistema entra en modo Calma: menos ataques simultáneos"
+      : difficulty === "balanced"
+        ? "El ecosistema adopta un pulso equilibrado"
+        : "El ecosistema queda sin límites de protección",
   );
   return world;
 }
@@ -784,19 +873,26 @@ function updateAnt(agent: Agent, world: WorldState) {
         ? bestPheromone(world, agent, ["forage", "recruit"])
         : undefined;
     if (agent.faction === "acromyrmex" && !signal) {
-      const angle = agent.id * 2.399963;
-      const radius = 2.2 + (agent.id % 8) * 0.33;
+      const isDefending = world.colonyPriority === "defend";
+      const isIndoor = world.colonyPriority === "brood" || world.colonyPriority === "excavate";
+      const angle = agent.id * 2.399963 + (isDefending ? world.tick * 0.01 : 0);
+      
+      const baseRadius = isIndoor ? 1.5 : (isDefending ? 5.5 : 2.2);
+      const spread = isIndoor ? 0.2 : (isDefending ? 0.8 : 0.33);
+      const radius = baseRadius + (agent.id % 8) * spread;
+      
       const restingPlace = {
         x: Math.cos(angle) * radius,
         z: Math.sin(angle) * radius,
       };
-      if (distanceSq(agent.position, restingPlace) > 0.8)
-        steer(agent, restingPlace, speed * 0.42);
+      
+      if (distanceSq(agent.position, restingPlace) > 1.2)
+        steer(agent, restingPlace, speed * (isDefending ? 0.6 : 0.42));
       else {
         agent.velocity.x *= 0.55;
         agent.velocity.z *= 0.55;
       }
-      agent.task = "idle";
+      agent.task = isDefending ? "defend" : "idle";
     } else {
       const resource = signal
         ? { position: signal.position }
@@ -830,6 +926,7 @@ function lineDistanceSq(point: Vec2, a: Vec2, b: Vec2): number {
 
 function updateOtherFaction(agent: Agent, world: WorldState) {
   if (!agent.alive) return;
+  const profile = difficultyProfile(world);
   const flight =
     agent.kind === "wasp" || agent.kind === "bumblebee" || agent.kind === "fly";
   if (agent.kind === "wasp") {
@@ -862,13 +959,24 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
       }
       return;
     }
-    const exposedAnt = world.agents
+    const activeWasps = world.agents.filter(
+      (candidate) =>
+        candidate.id !== agent.id &&
+        candidate.alive &&
+        candidate.kind === "wasp" &&
+        candidate.task === "attack" &&
+        candidate.targetId !== null,
+    ).length;
+    const exposedAnt =
+      activeWasps < profile.attackerLimit
+        ? world.agents
       .filter(
         (candidate) =>
           candidate.alive &&
           candidate.kind === "ant" &&
           candidate.faction === "acromyrmex" &&
-          distanceSq(agent.position, candidate.position) < 196 &&
+          distanceSq(agent.position, candidate.position) <
+            196 * profile.spiderSpeed &&
           (candidate.carrying > 0 || candidate.order !== "autonomous"),
       )
       .sort(
@@ -877,7 +985,8 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
           distanceSq(a.position, agent.position) -
             distanceSq(b.position, agent.position) ||
           a.id - b.id,
-      )[0];
+      )[0]
+        : undefined;
     if (exposedAnt && agent.energy > 0.22) {
       if (agent.targetId !== exposedAnt.id)
         event(
@@ -895,8 +1004,15 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         distanceSq(agent.position, exposedAnt.position) < 2.6 &&
         (world.tick + agent.id) % 23 === 0
       ) {
-        exposedAnt.integrity = clamp(exposedAnt.integrity - 0.16, 0, 1);
-        exposedAnt.poisonedTicks = Math.max(exposedAnt.poisonedTicks, 70);
+        exposedAnt.integrity = clamp(
+          exposedAnt.integrity - 0.16 * profile.spiderDamage,
+          0,
+          1,
+        );
+        exposedAnt.poisonedTicks = Math.max(
+          exposedAnt.poisonedTicks,
+          Math.round(70 * profile.spiderDamage),
+        );
         exposedAnt.task = "flee";
         agent.energy = clamp(agent.energy - 0.028, 0, 1);
         if (exposedAnt.integrity <= 0)
@@ -907,6 +1023,10 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
           );
       }
       return;
+    }
+    if (agent.task === "attack") {
+      agent.targetId = null;
+      agent.task = "idle";
     }
   }
   if (agent.kind === "termite") {
@@ -952,20 +1072,32 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     }
   }
   if (agent.kind === "beetle") {
-    const exposedAnt = world.agents
+    const activeBeetles = world.agents.filter(
+      (candidate) =>
+        candidate.id !== agent.id &&
+        candidate.alive &&
+        candidate.kind === "beetle" &&
+        candidate.task === "attack" &&
+        candidate.targetId !== null,
+    ).length;
+    const exposedAnt =
+      activeBeetles < profile.attackerLimit
+        ? world.agents
       .filter(
         (candidate) =>
           candidate.alive &&
           candidate.kind === "ant" &&
           candidate.faction === "acromyrmex" &&
-          distanceSq(agent.position, candidate.position) < 64,
+          distanceSq(agent.position, candidate.position) <
+          64 * profile.spiderSpeed,
       )
       .sort(
         (a, b) =>
           distanceSq(a.position, agent.position) -
             distanceSq(b.position, agent.position) ||
           a.id - b.id,
-      )[0];
+      )[0]
+        : undefined;
     if (exposedAnt) {
       if (agent.targetId !== exposedAnt.id)
         event(
@@ -983,7 +1115,11 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         distanceSq(agent.position, exposedAnt.position) < 1.8 &&
         (world.tick + agent.id) % 41 === 0
       ) {
-        exposedAnt.integrity = clamp(exposedAnt.integrity - 0.085, 0, 1);
+        exposedAnt.integrity = clamp(
+          exposedAnt.integrity - 0.085 * profile.spiderDamage,
+          0,
+          1,
+        );
         if (exposedAnt.integrity <= 0)
           removeAgent(
             world,
@@ -992,6 +1128,10 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
           );
       }
       return;
+    }
+    if (agent.task === "attack") {
+      agent.targetId = null;
+      agent.task = "idle";
     }
   }
   if (agent.kind === "fly" && world.nest.wasteLoad > 0.45) {
@@ -1100,6 +1240,7 @@ function killAgent(world: WorldState, agent: Agent, spider: Spider) {
 }
 
 function updateSpider(spider: Spider, world: WorldState) {
+  const profile = difficultyProfile(world);
   if (spider.nextArrivalTick > world.tick) {
     if (spider.warningTicks > 0 && world.tick === spider.warningTicks - 300)
       event(
@@ -1118,6 +1259,19 @@ function updateSpider(spider: Spider, world: WorldState) {
     return;
   }
   if (!spider.visible) {
+    const activePredators = world.spiders.filter(
+      (candidate) =>
+        candidate.id !== spider.id &&
+        candidate.visible &&
+        (candidate.guild === "ground-runner" ||
+          ["detect", "stalk", "attack", "immobilize"].includes(
+            candidate.state,
+          )),
+    ).length;
+    if (activePredators >= profile.predatorLimit) {
+      spider.nextArrivalTick = world.tick + 300;
+      return;
+    }
     spider.visible = true;
     world.metrics.spidersEncountered += 1;
     spider.state = "explore";
@@ -1209,13 +1363,18 @@ function updateSpider(spider: Spider, world: WorldState) {
     steerSpider(
       spider,
       prey.position,
-      (spider.dominant ? 0.19 : 0.15) * spider.mobility,
+      (spider.dominant ? 0.19 : 0.15) *
+        spider.mobility *
+        profile.spiderSpeed,
     );
     spider.energy = clamp(spider.energy - 0.0007, 0, 1);
   } else {
     spider.state = "immobilize";
-    prey.poisonedTicks += spider.dominant ? 34 : 20;
-    prey.integrity -= spider.dominant ? 0.42 : 0.3;
+    prey.poisonedTicks += Math.round(
+      (spider.dominant ? 34 : 20) * profile.spiderDamage,
+    );
+    prey.integrity -=
+      (spider.dominant ? 0.42 : 0.3) * profile.spiderDamage;
     if (prey.integrity <= 0 || prey.poisonedTicks > 38) {
       spider.state = "consume";
       killAgent(world, prey, spider);
@@ -1295,6 +1454,7 @@ function endMatch(
 }
 
 function updateEconomy(world: WorldState) {
+  const profile = difficultyProfile(world);
   const chamberTotal = Object.values(world.nest.chambers).reduce(
     (sum, level) => sum + level,
     0,
@@ -1335,8 +1495,8 @@ function updateEconomy(world: WorldState) {
     Math.abs(world.temperature - 18) / (20 + world.nest.ventilation * 14);
   world.fungusHealth = clamp(
     world.fungusHealth -
-      0.00003 * (1 + thermalStress) -
-      world.nest.wasteLoad * 0.000035 +
+      0.00003 * (1 + thermalStress) * profile.economyDrain -
+      world.nest.wasteLoad * 0.000035 * profile.economyDrain +
       world.nest.chambers.fungus * 0.000012 +
       (world.colonyPriority === "forage" ? 0.000025 : 0),
     0,
@@ -1409,7 +1569,11 @@ export function stepWorld(
     else updateOtherFaction(agent, world);
     if (agent.poisonedTicks > 0 && agent.alive) {
       agent.poisonedTicks -= 1;
-      agent.energy = clamp(agent.energy - 0.006, 0, 1);
+      agent.energy = clamp(
+        agent.energy - 0.006 * difficultyProfile(world).spiderDamage,
+        0,
+        1,
+      );
     }
   }
   for (const spider of world.spiders) updateSpider(spider, world);

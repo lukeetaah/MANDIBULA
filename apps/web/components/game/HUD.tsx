@@ -273,7 +273,9 @@ function Briefing() {
 
 function SettingsPanel() {
   const settings = useGameStore((state) => state.settings);
+  const difficulty = useGameStore((state) => state.difficulty);
   const setSetting = useGameStore((state) => state.setSetting);
+  const setDifficulty = useGameStore((state) => state.setDifficulty);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   return (
     <div
@@ -292,6 +294,22 @@ function SettingsPanel() {
             ×
           </button>
         </header>
+        <div className="settings-difficulty">
+          <small>DIFICULTAD · EFECTO INMEDIATO</small>
+          {(["gentle", "balanced", "wild"] as const).map((value) => (
+            <button
+              key={value}
+              className={difficulty === value ? "active" : ""}
+              onClick={() => setDifficulty(value)}
+            >
+              {value === "gentle"
+                ? "CALMA"
+                : value === "balanced"
+                  ? "EQUILIBRIO"
+                  : "SILVESTRE"}
+            </button>
+          ))}
+        </div>
         <label>
           Velocidad de cámara{" "}
           <input
@@ -345,6 +363,11 @@ function SettingsPanel() {
             onChange={(value) => setSetting("sound", value)}
           />
           <Toggle
+            label="Pausas que explican"
+            checked={settings.guidedPauses}
+            onChange={(value) => setSetting("guidedPauses", value)}
+          />
+          <Toggle
             label="Reducir sonidos intensos"
             checked={!settings.intenseSounds}
             onChange={(value) => setSetting("intenseSounds", !value)}
@@ -381,8 +404,13 @@ function Toggle({
   );
 }
 
-function useAmbientSound(enabled: boolean) {
+function useAmbientSound(
+  enabled: boolean,
+  latestEvent?: { tick: number; type: string },
+  intense = false,
+) {
   const audio = useRef<{ context: AudioContext; gain: GainNode } | null>(null);
+  const lastCue = useRef("");
   useEffect(() => {
     const start = () => {
       if (audio.current) return;
@@ -398,9 +426,9 @@ function useAmbientSound(enabled: boolean) {
       source.loop = true;
       const filter = context.createBiquadFilter();
       filter.type = "lowpass";
-      filter.frequency.value = 430;
+      filter.frequency.value = 760;
       const gain = context.createGain();
-      gain.gain.value = enabled ? 0.018 : 0;
+      gain.gain.value = enabled ? 0.05 : 0;
       source.connect(filter).connect(gain).connect(context.destination);
       source.start();
       audio.current = { context, gain };
@@ -411,11 +439,38 @@ function useAmbientSound(enabled: boolean) {
   useEffect(() => {
     if (audio.current)
       audio.current.gain.gain.setTargetAtTime(
-        enabled ? 0.018 : 0,
+        enabled ? 0.05 : 0,
         audio.current.context.currentTime,
         0.12,
       );
   }, [enabled]);
+  useEffect(() => {
+    if (!enabled || !latestEvent || !audio.current) return;
+    const key = `${latestEvent.tick}-${latestEvent.type}`;
+    if (lastCue.current === key) return;
+    lastCue.current = key;
+    const { context, gain: master } = audio.current;
+    const oscillator = context.createOscillator();
+    const cueGain = context.createGain();
+    const dangerous = ["predator-sign", "spider-attack", "fauna-attack"].includes(
+      latestEvent.type,
+    );
+    oscillator.type = dangerous ? "sawtooth" : "sine";
+    oscillator.frequency.setValueAtTime(dangerous ? 120 : 420, context.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      dangerous ? 62 : 620,
+      context.currentTime + 0.28,
+    );
+    cueGain.gain.setValueAtTime(0.0001, context.currentTime);
+    cueGain.gain.exponentialRampToValueAtTime(
+      intense ? 0.2 : 0.11,
+      context.currentTime + 0.025,
+    );
+    cueGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.34);
+    oscillator.connect(cueGain).connect(master);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.36);
+  }, [enabled, intense, latestEvent]);
 }
 
 function Diagnostics() {
@@ -465,6 +520,7 @@ export function HUD() {
   const togglePause = useGameStore((state) => state.togglePause);
   const restart = useGameStore((state) => state.restart);
   const sound = useGameStore((state) => state.settings.sound);
+  const intenseSounds = useGameStore((state) => state.settings.intenseSounds);
   const subtitles = useGameStore((state) => state.settings.subtitles);
   const selected = world.agents.filter((agent) =>
     selectedIds.includes(agent.id),
@@ -474,10 +530,14 @@ export function HUD() {
       agent.alive && agent.kind === "ant" && agent.faction === "acromyrmex",
   );
   const latestEvent = world.eventLog[world.eventLog.length - 1];
+  const coach = useGameStore((state) => state.coach);
+  const dismissCoach = useGameStore((state) => state.dismissCoach);
+  const difficulty = useGameStore((state) => state.difficulty);
+  const setDifficulty = useGameStore((state) => state.setDifficulty);
   const tutorialItem =
     tutorial[Math.min(world.tutorialStep, tutorial.length - 1)]!;
 
-  useAmbientSound(sound);
+  useAmbientSound(sound, latestEvent, intenseSounds);
 
   const danger = useMemo(() => {
     const watched = selected.length ? selected : colony.slice(0, 1);
@@ -585,7 +645,12 @@ export function HUD() {
           <button
             className={`nest-access ${underground ? "active" : ""} ${
               world.tutorialStep === 6 ? "is-called" : ""
-            }`}
+            } dominant-toggle`}
+            data-danger={
+              underground
+                ? world.spiders.some((s) => s.agitation > 0.2)
+                : world.nest.hygiene < 0.4 || world.nest.moisture < 0.3
+            }
             onClick={() => setUnderground(!underground)}
             aria-label={
               underground ? "Volver a superficie" : "Entrar al subsuelo"
@@ -594,6 +659,11 @@ export function HUD() {
             <span aria-hidden="true">{underground ? "↑" : "↓"}</span>
             <b>{underground ? "SUPERFICIE" : "SUBSUELO"}</b>
             <small>B · {underground ? "MAPA" : "CÁMARAS"}</small>
+            {(underground
+              ? world.spiders.some((s) => s.agitation > 0.2)
+              : world.nest.hygiene < 0.4 || world.nest.moisture < 0.3) && (
+              <i className="danger-ping" title="¡Atención requerida!" />
+            )}
           </button>
           <button onClick={() => setHelpOpen(true)}>GUÍA</button>
           <button
@@ -950,10 +1020,34 @@ export function HUD() {
         </div>
       )}
       {world.paused && !settingsOpen && (
-        <div className="paused-card">
-          <small>SIMULACIÓN EN SUSPENSO</small>
-          <strong>La estepa contiene el aliento.</strong>
-          <button onClick={togglePause}>CONTINUAR</button>
+        <div className={`paused-card ${coach ? `coach-${coach.tone}` : ""}`}>
+          <small>{coach ? "LA RED TE EXPLICA · PAUSA" : "PAUSA TÁCTICA"}</small>
+          <strong>{coach?.title ?? "La estepa contiene el aliento."}</strong>
+          {coach ? (
+            <>
+              <p>{coach.body}</p>
+              <div className="coach-response">
+                <b>QUÉ PODÉS HACER</b>
+                <span>{coach.response}</span>
+              </div>
+              <div className="coach-actions">
+                {difficulty !== "gentle" && (
+                  <button onClick={() => setDifficulty("gentle")}>
+                    BAJAR A CALMA
+                  </button>
+                )}
+                <button onClick={dismissCoach}>ENTENDIDO · SEGUIR</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                Mirá las rutas, la higiene y los depredadores. Nada avanza hasta
+                que decidas.
+              </p>
+              <button onClick={togglePause}>CONTINUAR</button>
+            </>
+          )}
         </div>
       )}
       {helpOpen && <Briefing />}
