@@ -154,6 +154,7 @@ export interface WorldState {
   wind: Vec2;
   rain: number;
   playerAgentId: number;
+  playerFaction: FactionId;
   playerSequence: number;
   mandate: number;
   authorityLevel: 1 | 2 | 3;

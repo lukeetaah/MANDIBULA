@@ -274,16 +274,20 @@ function AntColony() {
     const world = useGameStore.getState().world;
     const agents = world.agents.filter((a) => a.kind === "ant");
     const agent = agents[event.instanceId];
-    if (!agent?.alive || agent.faction !== "acromyrmex") return;
+    const playerFaction = world.playerFaction || "acromyrmex";
+    if (!agent?.alive || agent.faction !== playerFaction) {
+      if (agent?.alive) useGameStore.getState().inspect("agent", agent.id);
+      return;
+    }
     event.stopPropagation();
 
     if (event.nativeEvent.detail === 2) {
-      const radiusSq = 35 * 35; // Select ants within 35 units
+      const radiusSq = 35 * 35; // Select units within 35 units
       const toSelect = agents
         .filter(
           (a) =>
             a.alive &&
-            a.faction === "acromyrmex" &&
+            a.faction === playerFaction &&
             Math.pow(a.position.x - agent.position.x, 2) +
               Math.pow(a.position.z - agent.position.z, 2) <
               radiusSq,
@@ -1561,12 +1565,12 @@ function RTSInteractionPlane() {
         bottom: Math.max(start.y, event.clientY),
       };
       const canvas = gl.domElement.getBoundingClientRect();
+      const pFaction = world.playerFaction || "acromyrmex";
       const selected = world.agents
         .filter(
           (agent) =>
             agent.alive &&
-            agent.kind === "ant" &&
-            agent.faction === "acromyrmex",
+            agent.faction === pFaction,
         )
         .filter((agent) => {
           const point = new THREE.Vector3(
@@ -1593,11 +1597,15 @@ function RTSInteractionPlane() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [camera, clearSelection, gl, selectUnits, setSelectionBox, world.agents]);
+  }, [camera, clearSelection, gl, selectUnits, setSelectionBox, world.agents, world.playerFaction]);
 
   const pointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
-    if (event.button === 2) issueMove({ x: event.point.x, z: event.point.z });
+    // Issue move on right click or on touch pointer when units are selected
+    const selectedCount = useGameStore.getState().selectedIds.length;
+    if (event.button === 2 || (event.nativeEvent.pointerType === "touch" && selectedCount > 0)) {
+      issueMove({ x: event.point.x, z: event.point.z });
+    }
     if (event.button === 0) {
       drag.current = {
         x: event.nativeEvent.clientX,

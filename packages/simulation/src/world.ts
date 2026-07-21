@@ -135,6 +135,7 @@ function emptyMetrics(): WorldState["metrics"] {
 export function createWorld(
   seed = 0x5eed1234,
   difficulty: Difficulty = "balanced",
+  playerFaction: FactionId = "acromyrmex",
 ): WorldState {
   const initialFungus =
     difficulty === "gentle" ? 0.84 : difficulty === "balanced" ? 0.78 : 0.72;
@@ -153,6 +154,7 @@ export function createWorld(
     wind: { x: 0.25, z: 0.05 },
     rain: 0,
     playerAgentId: 0,
+    playerFaction,
     playerSequence: 0,
     mandate: 0,
     authorityLevel: 1,
@@ -181,19 +183,58 @@ export function createWorld(
     metrics: emptyMetrics(),
   };
 
-  const player = makeAgent(world, "ant", "acromyrmex", { x: 1.5, z: 0 }, true);
+  const factionKindMap: Record<string, Agent["kind"]> = {
+    acromyrmex: "ant",
+    porotermes: "termite",
+    vespula: "wasp",
+    bombus: "bumblebee",
+  };
+  const factionOriginMap: Record<string, Vec2> = {
+    acromyrmex: { x: 1.5, z: 0 },
+    porotermes: { x: -32, z: -24 },
+    vespula: { x: -24, z: 28 },
+    bombus: { x: 18, z: 26 },
+  };
+  const factionUnitCount: Record<string, number> = {
+    acromyrmex: 62,
+    porotermes: 32,
+    vespula: 16,
+    bombus: 10,
+  };
+
+  const pKind = factionKindMap[playerFaction] || "ant";
+  const pOrigin = factionOriginMap[playerFaction] || { x: 1.5, z: 0 };
+  const pCount = factionUnitCount[playerFaction] || 62;
+
+  const player = makeAgent(world, pKind, playerFaction, pOrigin, true);
   world.playerAgentId = player.id;
   world.agents.push(player);
-  for (let i = 0; i < 62; i += 1) {
+
+  for (let i = 0; i < pCount; i += 1) {
     const angle = (i * 2.399963) % (Math.PI * 2);
-    const radius = 2 + (i % 8) * 0.34;
+    const radius = 1.2 + (i % 8) * 0.34;
     world.agents.push(
-      makeAgent(world, "ant", "acromyrmex", {
-        x: Math.cos(angle) * radius,
-        z: Math.sin(angle) * radius,
+      makeAgent(world, pKind, playerFaction, {
+        x: pOrigin.x + Math.cos(angle) * radius,
+        z: pOrigin.z + Math.sin(angle) * radius,
       }),
     );
   }
+
+  // Spawn non-player environmental & rival factions
+  if (playerFaction !== "acromyrmex") {
+    for (let i = 0; i < 40; i += 1) {
+      const angle = (i * 2.399963) % (Math.PI * 2);
+      const radius = 2 + (i % 8) * 0.34;
+      world.agents.push(
+        makeAgent(world, "ant", "acromyrmex", {
+          x: Math.cos(angle) * radius,
+          z: Math.sin(angle) * radius,
+        }),
+      );
+    }
+  }
+
   for (let i = 0; i < 28; i += 1) {
     world.agents.push(
       makeAgent(world, "ant", "rival", {
@@ -202,23 +243,32 @@ export function createWorld(
       }),
     );
   }
-  const waspCount =
-    difficulty === "gentle" ? 3 : difficulty === "balanced" ? 5 : 7;
-  for (let i = 0; i < waspCount; i += 1)
-    world.agents.push(
-      makeAgent(world, "wasp", "vespula", { x: -24 + i * 0.9, z: 28 }),
-    );
-  for (let i = 0; i < 8; i += 1)
-    world.agents.push(
-      makeAgent(world, "bumblebee", "bombus", { x: 18 + i * 0.7, z: 26 }),
-    );
-  for (let i = 0; i < 16; i += 1)
-    world.agents.push(
-      makeAgent(world, "termite", "porotermes", {
-        x: -32 + (i % 8) * 0.45,
-        z: -24 + Math.floor(i / 8) * 0.5,
-      }),
-    );
+
+  if (playerFaction !== "vespula") {
+    const waspCount =
+      difficulty === "gentle" ? 3 : difficulty === "balanced" ? 5 : 7;
+    for (let i = 0; i < waspCount; i += 1)
+      world.agents.push(
+        makeAgent(world, "wasp", "vespula", { x: -24 + i * 0.9, z: 28 }),
+      );
+  }
+
+  if (playerFaction !== "bombus") {
+    for (let i = 0; i < 8; i += 1)
+      world.agents.push(
+        makeAgent(world, "bumblebee", "bombus", { x: 18 + i * 0.7, z: 26 }),
+      );
+  }
+
+  if (playerFaction !== "porotermes") {
+    for (let i = 0; i < 16; i += 1)
+      world.agents.push(
+        makeAgent(world, "termite", "porotermes", {
+          x: -32 + (i % 8) * 0.45,
+          z: -24 + Math.floor(i / 8) * 0.5,
+        }),
+      );
+  }
   for (let i = 0; i < 24; i += 1) {
     const angle = (i / 24) * Math.PI * 2;
     world.agents.push(

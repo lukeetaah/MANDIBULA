@@ -6,6 +6,7 @@ import {
   restoreSnapshot,
   serializeSnapshot,
   stepWorld,
+  type FactionId,
   type PheromoneType,
   type ColonyPriority,
   type Difficulty,
@@ -67,6 +68,7 @@ interface GameStore {
   signalType: PheromoneType;
   timeScale: 1 | 2 | 3 | 6;
   difficulty: Difficulty;
+  playerFaction: FactionId;
   underground: boolean;
   coach: CoachCard | null;
   coachedEvents: SimEvent["type"][];
@@ -92,6 +94,7 @@ interface GameStore {
   cycleSignal: () => void;
   setTimeScale: (value: 1 | 2 | 3 | 6) => void;
   setDifficulty: (value: Difficulty) => void;
+  setSpecies: (faction: FactionId) => void;
   setUnderground: (value: boolean) => void;
   inspect: (kind: "agent" | "spider", id: number) => void;
   clearInspection: () => void;
@@ -216,6 +219,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   signalType: "forage",
   timeScale: 1,
   difficulty: "gentle",
+  playerFaction: "acromyrmex",
   underground: false,
   coach: null,
   coachedEvents: [],
@@ -223,16 +227,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   fps: 60,
   settings: defaultSettings,
   pending: [],
+  setSpecies: (faction: FactionId) => set({ playerFaction: faction }),
   begin: (resume = false) => {
     const chosenDifficulty = get().difficulty;
+    const faction = get().playerFaction;
     const loaded = resume ? loadWorld() : null;
-    const world = loaded ?? createWorld(0x1a2b3c4d, chosenDifficulty);
+    const world = loaded ?? createWorld(0x1a2b3c4d, chosenDifficulty, faction);
     set({
       started: true,
       helpOpen: false,
       selectedIds: [],
       selectionBox: null,
       difficulty: world.difficulty,
+      playerFaction: world.playerFaction || faction,
       coach: null,
       coachedEvents: [],
       world,
@@ -241,8 +248,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   restart: () => {
     localStorage.removeItem(SAVE_KEY);
     const difficulty = get().difficulty;
+    const faction = get().playerFaction;
     set({
-      world: createWorld(0x1a2b3c4d, difficulty),
+      world: createWorld(0x1a2b3c4d, difficulty, faction),
       started: true,
       helpOpen: true,
       tactical: false,

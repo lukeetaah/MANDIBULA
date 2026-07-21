@@ -522,21 +522,69 @@ function Diagnostics() {
   );
 }
 
-function useTrend(value: number, threshold: number = 0.01) {
-  const prev = useRef(value);
-  const [trend, setTrend] = useState<"up" | "down" | "stable">("stable");
+export const NEST_WARNING_THRESHOLDS = {
+  hygiene: { critical: 0.28, risk: 0.42, hyst: 0.04 },
+  moisture: { critical: 0.22, risk: 0.38, hyst: 0.04 },
+  wasteLoad: { critical: 0.82, risk: 0.65, hyst: 0.04 },
+} as const;
+
+export type WarningSeverity = "attention" | "risk" | "critical";
+
+export interface EcoWarning {
+  id: string;
+  severity: WarningSeverity;
+  title: string;
+  causeEffect: string;
+}
+
+function useMetricTrend(value: number, type: "fungus" | "biomass" | "workers" | "temp") {
+  const historyRef = useRef<number[]>([]);
+  const [result, setResult] = useState<{ direction: "up" | "down" | "stable"; reason: string }>({
+    direction: "stable",
+    reason: "Estable",
+  });
 
   useEffect(() => {
-    const diff = value - prev.current;
-    if (Math.abs(diff) >= threshold) {
-      setTrend(diff > 0 ? "up" : "down");
-      prev.current = value;
-    } else if (Math.abs(diff) < threshold / 2) {
-      setTrend("stable");
-    }
-  }, [value, threshold]);
+    const history = historyRef.current;
+    history.push(value);
+    if (history.length > 20) history.shift();
 
-  return trend;
+    if (history.length < 4) return;
+
+    const first = history[0] ?? 0;
+    const last = history[history.length - 1] ?? 0;
+    const diff = last - first;
+
+    const threshold = type === "fungus" ? 0.02 : type === "temp" ? 0.8 : 1.0;
+    const hystThreshold = threshold * 0.4;
+
+    setResult((prev) => {
+      let dir: "up" | "down" | "stable" = prev.direction;
+
+      if (diff > threshold) {
+        dir = "up";
+      } else if (diff < -threshold) {
+        dir = "down";
+      } else if (Math.abs(diff) < hystThreshold) {
+        dir = "stable";
+      }
+
+      let reason = "Tendencia estable";
+      if (type === "fungus") {
+        reason = dir === "up" ? "Forraje & sustrato activo" : dir === "down" ? "Descomposición / Estrés térmico" : "Equilibrio fúngico";
+      } else if (type === "biomass") {
+        reason = dir === "up" ? "Cosecha en aumento" : dir === "down" ? "Consumo de mantención" : "Reserva constante";
+      } else if (type === "workers") {
+        reason = dir === "up" ? "Nuevas eclosiones" : dir === "down" ? "Bajas en combate / depredación" : "Población estable";
+      } else if (type === "temp") {
+        reason = dir === "up" ? "Calentamiento diurno" : dir === "down" ? "Descenso térmico estacional" : "Temperatura estable";
+      }
+
+      return { direction: dir, reason };
+    });
+  }, [value, type]);
+
+  return result;
 }
 
 export function HUD() {
@@ -674,14 +722,94 @@ export function HUD() {
               target: 0.3,
               note: "La estepa se congela. Protegé el hongo y conservá biomasa.",
             };
+  const fungusTrend = useMetricTrend(world.fungusHealth, "fungus");
+  const biomassTrend = useMetricTrend(world.colonyBiomass, "biomass");
+  const workersTrend = useMetricTrend(colony.length, "workers");
+  const tempTrend = useMetricTrend(world.temperature, "temp");
+
   const observedAgent =
     observed?.kind === "agent"
-      ? world.agents.find((agent) => agent.id === observed.id)
+      ? world.agents.find((agent) => agent.id === observed.id && agent.alive)
       : undefined;
   const observedSpider =
     observed?.kind === "spider"
       ? world.spiders.find((spider) => spider.id === observed.id)
       : undefined;
+
+  const activeWarnings = useMemo(() => {
+    const list: EcoWarning[] = [];
+    const { hygiene, moisture, wasteLoad } = NEST_WARNING_THRESHOLDS;
+
+    if (world.nest.hygiene < hygiene.critical) {
+      list.push({
+        id: "hygiene-crit",
+        severity: "critical",
+        title: "CRÍTICO · Higiene severa",
+        causeEffect: "La contaminación del nido enferma la cría y drena la colonia.",
+      });
+    } else if (world.nest.hygiene < hygiene.risk) {
+      list.push({
+        id: "hygiene-risk",
+        severity: "risk",
+        title: "RIESGO · Higiene deficiente",
+        causeEffect: "Residuos acumulados aumentan el riesgo de patógenos.",
+      });
+    }
+
+    if (world.nest.moisture < moisture.critical) {
+      list.push({
+        id: "moisture-crit",
+        severity: "critical",
+        title: "CRÍTICO · Deshidratación",
+        causeEffect: "El cultivo fúngico se seca rápidamente por falta de humedad.",
+      });
+    } else if (world.nest.moisture < moisture.risk) {
+      list.push({
+        id: "moisture-risk",
+        severity: "risk",
+        title: "RIESGO · Humedad baja",
+        causeEffect: "Baja humedad reduce el ritmo de eclosión de la cría.",
+      });
+    }
+
+    if (world.nest.wasteLoad > wasteLoad.critical) {
+      list.push({
+        id: "waste-crit",
+        severity: "critical",
+        title: "CRÍTICO · Residuos desbordados",
+        causeEffect: "Bolsón de residuos al límite atrae moscas y pudre el sustrato.",
+      });
+    } else if (world.nest.wasteLoad > wasteLoad.risk) {
+      list.push({
+        id: "waste-risk",
+        severity: "risk",
+        title: "ATENCIÓN · Carga de residuos alta",
+        causeEffect: "Construí un bolsón de residuos o amplia ventilación.",
+      });
+    }
+
+    return list;
+  }, [world.nest.hygiene, world.nest.moisture, world.nest.wasteLoad]);
+
+  const getSpiderGoal = (spider: typeof world.spiders[0]) => {
+    if (spider.state === "stalk") return "Objetivo: Acechando presa en el perímetro";
+    if (spider.state === "immobilize" || spider.state === "consume") return "Objetivo: Capturando obrera aislada";
+    if (spider.state === "sated" || spider.state === "retreat") return "Objetivo: Buscando refugio tras cacería";
+    if (spider.state === "detect") return "Objetivo: Evaluando vibraciones de tránsito";
+    if (spider.state === "explore") return "Objetivo: Patrullando corredor de caza";
+    return "Objetivo: Oculta en terreno";
+  };
+
+  const getAgentGoal = (agent: typeof world.agents[0]) => {
+    if (agent.carrying > 0) return "Objetivo: Transportando biomasa hacia el nido";
+    if (agent.task === "forage") return "Objetivo: Buscando sustrato y alimento";
+    if (agent.task === "flee") return "Objetivo: Evadiendo amenaza cercana";
+    if (agent.task === "defend") return "Objetivo: Protegiendo acceso al nido";
+    if (agent.task === "attack") return "Objetivo: Expulsando depredador detectado";
+    if (agent.task === "move") return "Objetivo: Desplazándose según mandato";
+    if (agent.task === "sealed") return "Objetivo: Sellando galería de madera";
+    return "Objetivo: Esperando intención de colonia";
+  };
 
   return (
     <div className={`hud ${underground ? "is-underground" : ""}`}>
@@ -690,26 +818,42 @@ export function HUD() {
           <i />
           <div>
             <b>MANDÍBULA</b>
-            <span>ACROMYRMEX · RED 01</span>
+            <span>{(world.playerFaction || "acromyrmex").toUpperCase()} · RED 01</span>
           </div>
         </div>
         <div className="world-pulse">
-          <span className={`trend-span trend-${useTrend(world.fungusHealth, 0.01)}`}>
+          <span
+            className={`trend-span trend-${fungusTrend.direction}`}
+            title={`CULTIVO: ${fungusTrend.reason}`}
+            aria-label={`Cultivo al ${Math.round(world.fungusHealth * 100)}%, ${fungusTrend.reason}`}
+          >
             <small>CULTIVO</small>
             <b>{Math.round(world.fungusHealth * 100)}%</b>
             <i className="trend-icon" />
           </span>
-          <span className={`trend-span trend-${useTrend(world.colonyBiomass, 1)}`}>
+          <span
+            className={`trend-span trend-${biomassTrend.direction}`}
+            title={`BIOMASA: ${biomassTrend.reason}`}
+            aria-label={`Biomasa ${Math.floor(world.colonyBiomass)}, ${biomassTrend.reason}`}
+          >
             <small>BIOMASA</small>
             <b>{Math.floor(world.colonyBiomass)}</b>
             <i className="trend-icon" />
           </span>
-          <span className={`trend-span trend-${useTrend(colony.length, 1)}`}>
+          <span
+            className={`trend-span trend-${workersTrend.direction}`}
+            title={`OBRERAS: ${workersTrend.reason}`}
+            aria-label={`Obreras ${colony.length}, ${workersTrend.reason}`}
+          >
             <small>OBRERAS</small>
             <b>{colony.length}</b>
             <i className="trend-icon" />
           </span>
-          <span className={`trend-span trend-${useTrend(world.temperature, 0.5)}`}>
+          <span
+            className={`trend-span trend-${tempTrend.direction}`}
+            title={`CLIMA: ${tempTrend.reason}`}
+            aria-label={`Clima ${Math.round(world.temperature)}°, ${tempTrend.reason}`}
+          >
             <small>CLIMA</small>
             <b>{Math.round(world.temperature)}°</b>
             <i className="trend-icon" />
@@ -826,16 +970,13 @@ export function HUD() {
             </span>
           </div>
           <div className="nest-warnings">
-            {world.nest.hygiene < 0.4 && (
-              <p className="warning">⚠ Higiene baja: La cría enferma y reduce la eficiencia del enjambre.</p>
-            )}
-            {world.nest.moisture < 0.3 && (
-              <p className="warning">⚠ Humedad crítica: El jardín fúngico se seca perdiendo salud rápidamente.</p>
-            )}
-            {world.nest.wasteLoad > 0.7 && (
-              <p className="warning">⚠ Exceso de residuos: Drena fuertemente el cultivo y atrae moscas.</p>
-            )}
-            {world.nest.hygiene >= 0.4 && world.nest.moisture >= 0.3 && world.nest.wasteLoad <= 0.7 && (
+            {activeWarnings.length > 0 ? (
+              activeWarnings.map((warn) => (
+                <p key={warn.id} className={`warning ${warn.severity}`}>
+                  <b>{warn.title}:</b> {warn.causeEffect}
+                </p>
+              ))
+            ) : (
               <p className="stable">✓ Ecosistema subterráneo estable.</p>
             )}
           </div>
@@ -906,6 +1047,7 @@ export function HUD() {
               <b className="dossier-state">
                 ESTADO · {spiderStateMap[observedSpider.state] || observedSpider.state.toUpperCase()}
               </b>
+              <small className="dossier-goal">{getSpiderGoal(observedSpider)}</small>
               <p>
                 {observedSpider.state === "sated" || observedSpider.state === "retreat"
                   ? "Se retira del conflicto. Atacar ahora desperdicia obreras."
@@ -940,6 +1082,7 @@ export function HUD() {
               <b className="dossier-role">
                 {faunaProfiles[observedAgent.kind].role}
               </b>
+              <small className="dossier-goal">{getAgentGoal(observedAgent)}</small>
               <p>{faunaProfiles[observedAgent.kind].effect}</p>
               <div className="dossier-functions">
                 <span>
