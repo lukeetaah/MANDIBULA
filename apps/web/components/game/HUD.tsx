@@ -84,12 +84,14 @@ const faunaProfiles = {
   bumblebee: {
     name: "BOMBUS (Abejorro)",
     role: "CIRCUITO FLORAL",
-    effect: "Inofensivo. Poliniza flores del mallín y suele evitar zonas pobladas o telas de araña.",
+    effect:
+      "Inofensivo. Poliniza flores del mallín y suele evitar zonas pobladas o telas de araña.",
   },
   termite: {
     name: "POROTERMES (Termita)",
     role: "INGENIERÍA DE MADERA",
-    effect: "Sella corredores y bloquea el paso cuando percibe vibraciones de depredadores (arañas).",
+    effect:
+      "Sella corredores y bloquea el paso cuando percibe vibraciones de depredadores (arañas).",
   },
   fly: {
     name: "MOSCA DE ESTEPA",
@@ -106,7 +108,8 @@ const faunaProfiles = {
   ant: {
     name: "COLONIA RIVAL",
     role: "COMPETENCIA TERRITORIAL",
-    effect: "Disputa tus fuentes de alimento y puede agotar recursos antes de que llegues.",
+    effect:
+      "Disputa tus fuentes de alimento y puede agotar recursos antes de que llegues.",
   },
 } as const;
 
@@ -537,9 +540,15 @@ export interface EcoWarning {
   causeEffect: string;
 }
 
-function useMetricTrend(value: number, type: "fungus" | "biomass" | "workers" | "temp") {
+function useMetricTrend(
+  value: number,
+  type: "fungus" | "biomass" | "workers" | "temp",
+) {
   const historyRef = useRef<number[]>([]);
-  const [result, setResult] = useState<{ direction: "up" | "down" | "stable"; reason: string }>({
+  const [result, setResult] = useState<{
+    direction: "up" | "down" | "stable";
+    reason: string;
+  }>({
     direction: "stable",
     reason: "Estable",
   });
@@ -571,13 +580,33 @@ function useMetricTrend(value: number, type: "fungus" | "biomass" | "workers" | 
 
       let reason = "Tendencia estable";
       if (type === "fungus") {
-        reason = dir === "up" ? "Forraje & sustrato activo" : dir === "down" ? "Descomposición / Estrés térmico" : "Equilibrio fúngico";
+        reason =
+          dir === "up"
+            ? "Forraje & sustrato activo"
+            : dir === "down"
+              ? "Descomposición / Estrés térmico"
+              : "Equilibrio fúngico";
       } else if (type === "biomass") {
-        reason = dir === "up" ? "Cosecha en aumento" : dir === "down" ? "Consumo de mantención" : "Reserva constante";
+        reason =
+          dir === "up"
+            ? "Cosecha en aumento"
+            : dir === "down"
+              ? "Consumo de mantención"
+              : "Reserva constante";
       } else if (type === "workers") {
-        reason = dir === "up" ? "Nuevas eclosiones" : dir === "down" ? "Bajas en combate / depredación" : "Población estable";
+        reason =
+          dir === "up"
+            ? "Nuevas eclosiones"
+            : dir === "down"
+              ? "Bajas en combate / depredación"
+              : "Población estable";
       } else if (type === "temp") {
-        reason = dir === "up" ? "Calentamiento diurno" : dir === "down" ? "Descenso térmico estacional" : "Temperatura estable";
+        reason =
+          dir === "up"
+            ? "Calentamiento diurno"
+            : dir === "down"
+              ? "Descenso térmico estacional"
+              : "Temperatura estable";
       }
 
       return { direction: dir, reason };
@@ -623,7 +652,10 @@ export function HUD() {
 
   // Audio init on first interaction
   useEffect(() => {
-    const init = () => { audio.init(); document.removeEventListener("click", init); };
+    const init = () => {
+      audio.init();
+      document.removeEventListener("click", init);
+    };
     document.addEventListener("click", init);
     return () => document.removeEventListener("click", init);
   }, []);
@@ -745,7 +777,8 @@ export function HUD() {
         id: "hygiene-crit",
         severity: "critical",
         title: "CRÍTICO · Higiene severa",
-        causeEffect: "La contaminación del nido enferma la cría y drena la colonia.",
+        causeEffect:
+          "La contaminación del nido enferma la cría y drena la colonia.",
       });
     } else if (world.nest.hygiene < hygiene.risk) {
       list.push({
@@ -761,7 +794,8 @@ export function HUD() {
         id: "moisture-crit",
         severity: "critical",
         title: "CRÍTICO · Deshidratación",
-        causeEffect: "El cultivo fúngico se seca rápidamente por falta de humedad.",
+        causeEffect:
+          "El cultivo fúngico se seca rápidamente por falta de humedad.",
       });
     } else if (world.nest.moisture < moisture.risk) {
       list.push({
@@ -777,7 +811,8 @@ export function HUD() {
         id: "waste-crit",
         severity: "critical",
         title: "CRÍTICO · Residuos desbordados",
-        causeEffect: "Bolsón de residuos al límite atrae moscas y pudre el sustrato.",
+        causeEffect:
+          "Bolsón de residuos al límite atrae moscas y pudre el sustrato.",
       });
     } else if (world.nest.wasteLoad > wasteLoad.risk) {
       list.push({
@@ -791,21 +826,29 @@ export function HUD() {
     return list;
   }, [world.nest.hygiene, world.nest.moisture, world.nest.wasteLoad]);
 
-  const getSpiderGoal = (spider: typeof world.spiders[0]) => {
-    if (spider.state === "stalk") return "Objetivo: Acechando presa en el perímetro";
-    if (spider.state === "immobilize" || spider.state === "consume") return "Objetivo: Capturando obrera aislada";
-    if (spider.state === "sated" || spider.state === "retreat") return "Objetivo: Buscando refugio tras cacería";
-    if (spider.state === "detect") return "Objetivo: Evaluando vibraciones de tránsito";
-    if (spider.state === "explore") return "Objetivo: Patrullando corredor de caza";
+  const getSpiderGoal = (spider: (typeof world.spiders)[0]) => {
+    if (spider.state === "stalk")
+      return "Objetivo: Acechando presa en el perímetro";
+    if (spider.state === "immobilize" || spider.state === "consume")
+      return "Objetivo: Capturando obrera aislada";
+    if (spider.state === "sated" || spider.state === "retreat")
+      return "Objetivo: Buscando refugio tras cacería";
+    if (spider.state === "detect")
+      return "Objetivo: Evaluando vibraciones de tránsito";
+    if (spider.state === "explore")
+      return "Objetivo: Patrullando corredor de caza";
     return "Objetivo: Oculta en terreno";
   };
 
-  const getAgentGoal = (agent: typeof world.agents[0]) => {
-    if (agent.carrying > 0) return "Objetivo: Transportando biomasa hacia el nido";
-    if (agent.task === "forage") return "Objetivo: Buscando sustrato y alimento";
+  const getAgentGoal = (agent: (typeof world.agents)[0]) => {
+    if (agent.carrying > 0)
+      return "Objetivo: Transportando biomasa hacia el nido";
+    if (agent.task === "forage")
+      return "Objetivo: Buscando sustrato y alimento";
     if (agent.task === "flee") return "Objetivo: Evadiendo amenaza cercana";
     if (agent.task === "defend") return "Objetivo: Protegiendo acceso al nido";
-    if (agent.task === "attack") return "Objetivo: Expulsando depredador detectado";
+    if (agent.task === "attack")
+      return "Objetivo: Expulsando depredador detectado";
     if (agent.task === "move") return "Objetivo: Desplazándose según mandato";
     if (agent.task === "sealed") return "Objetivo: Sellando galería de madera";
     return "Objetivo: Esperando intención de colonia";
@@ -818,7 +861,9 @@ export function HUD() {
           <i />
           <div>
             <b>MANDÍBULA</b>
-            <span>{(world.playerFaction || "acromyrmex").toUpperCase()} · RED 01</span>
+            <span>
+              {(world.playerFaction || "acromyrmex").toUpperCase()} · RED 01
+            </span>
           </div>
         </div>
         <div className="world-pulse">
@@ -860,7 +905,15 @@ export function HUD() {
           </span>
           <span className={`priority-badge priority-${world.colonyPriority}`}>
             <small>PRIORIDAD</small>
-            <b>{world.colonyPriority === "forage" ? "HONGO" : world.colonyPriority === "brood" ? "CRÍA" : world.colonyPriority === "excavate" ? "EXCAVAR" : "DEFENSA"}</b>
+            <b>
+              {world.colonyPriority === "forage"
+                ? "HONGO"
+                : world.colonyPriority === "brood"
+                  ? "CRÍA"
+                  : world.colonyPriority === "excavate"
+                    ? "EXCAVAR"
+                    : "DEFENSA"}
+            </b>
           </span>
         </div>
         <div className="top-actions">
@@ -885,7 +938,10 @@ export function HUD() {
                 ? world.spiders.some((s) => s.agitation > 0.2)
                 : world.nest.hygiene < 0.4 || world.nest.moisture < 0.3
             }
-            onClick={() => { setUnderground(!underground); audio.layerSwitch(); }}
+            onClick={() => {
+              setUnderground(!underground);
+              audio.layerSwitch();
+            }}
             aria-label={
               underground ? "Volver a superficie" : "Entrar al subsuelo"
             }
@@ -1045,11 +1101,16 @@ export function HUD() {
                     : "Corredora terrestre"}
               </h2>
               <b className="dossier-state">
-                ESTADO · {spiderStateMap[observedSpider.state] || observedSpider.state.toUpperCase()}
+                ESTADO ·{" "}
+                {spiderStateMap[observedSpider.state] ||
+                  observedSpider.state.toUpperCase()}
               </b>
-              <small className="dossier-goal">{getSpiderGoal(observedSpider)}</small>
+              <small className="dossier-goal">
+                {getSpiderGoal(observedSpider)}
+              </small>
               <p>
-                {observedSpider.state === "sated" || observedSpider.state === "retreat"
+                {observedSpider.state === "sated" ||
+                observedSpider.state === "retreat"
                   ? "Se retira del conflicto. Atacar ahora desperdicia obreras."
                   : observedSpider.dominant
                     ? "Controla un corredor. Rodearla sirve para expulsar, no para vaciar una barra."
@@ -1082,7 +1143,9 @@ export function HUD() {
               <b className="dossier-role">
                 {faunaProfiles[observedAgent.kind].role}
               </b>
-              <small className="dossier-goal">{getAgentGoal(observedAgent)}</small>
+              <small className="dossier-goal">
+                {getAgentGoal(observedAgent)}
+              </small>
               <p>{faunaProfiles[observedAgent.kind].effect}</p>
               <div className="dossier-functions">
                 <span>
@@ -1092,7 +1155,9 @@ export function HUD() {
                   INTEGRIDAD <Meter value={observedAgent.integrity} />
                 </span>
                 <span className="dossier-state-pill">
-                  CONDUCTA · {agentTaskMap[observedAgent.task] || observedAgent.task.toUpperCase()}
+                  CONDUCTA ·{" "}
+                  {agentTaskMap[observedAgent.task] ||
+                    observedAgent.task.toUpperCase()}
                 </span>
               </div>
               <div className="dossier-actions">
@@ -1340,13 +1405,27 @@ export function HUD() {
           </div>
           <div className="end-causes">
             <small>CAUSAS PRINCIPALES</small>
-            {world.colonyBiomass < 20 && <p>⚠ Reserva de biomasa insuficiente para la tormenta.</p>}
-            {world.fungusHealth < 0.4 && <p>⚠ El jardín fúngico sufrió daño crítico.</p>}
-            {world.nest.hygiene < 0.4 && <p>⚠ La contaminación del nido debilitó la colonia.</p>}
-            {world.metrics.unitsConsumed > 8 && <p>⚠ Las pérdidas por fauna fueron altas.</p>}
-            {colony.length > 40 && world.fungusHealth > 0.5 && <p>✓ La colonia mantuvo masa crítica.</p>}
-            {world.nest.chambers.fungus > 1 && <p>✓ Infraestructura fúngica expandida.</p>}
-            {world.metrics.totalBiomassHarvested > 60 && <p>✓ Recolección eficiente durante la partida.</p>}
+            {world.colonyBiomass < 20 && (
+              <p>⚠ Reserva de biomasa insuficiente para la tormenta.</p>
+            )}
+            {world.fungusHealth < 0.4 && (
+              <p>⚠ El jardín fúngico sufrió daño crítico.</p>
+            )}
+            {world.nest.hygiene < 0.4 && (
+              <p>⚠ La contaminación del nido debilitó la colonia.</p>
+            )}
+            {world.metrics.unitsConsumed > 8 && (
+              <p>⚠ Las pérdidas por fauna fueron altas.</p>
+            )}
+            {colony.length > 40 && world.fungusHealth > 0.5 && (
+              <p>✓ La colonia mantuvo masa crítica.</p>
+            )}
+            {world.nest.chambers.fungus > 1 && (
+              <p>✓ Infraestructura fúngica expandida.</p>
+            )}
+            {world.metrics.totalBiomassHarvested > 60 && (
+              <p>✓ Recolección eficiente durante la partida.</p>
+            )}
           </div>
           <button onClick={restart}>NUEVA COLONIA</button>
         </div>

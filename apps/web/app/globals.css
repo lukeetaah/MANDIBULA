@@ -1335,7 +1335,8 @@ button {
   width: 14px;
   height: 14px;
 }
-.mini-danger, .mini-danger-ping {
+.mini-danger,
+.mini-danger-ping {
   position: absolute;
   top: 0;
   left: 0;
@@ -1353,7 +1354,8 @@ button {
   animation: ping-danger 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 @keyframes ping-danger {
-  75%, 100% {
+  75%,
+  100% {
     transform: scale(2.5);
     opacity: 0;
   }
@@ -2219,8 +2221,13 @@ button {
   animation: rotate-phone 2s ease-in-out infinite;
 }
 @keyframes rotate-phone {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(90deg); }
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(90deg);
+  }
 }
 .landscape-prompt-card h2 {
   font-size: 15px;

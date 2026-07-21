@@ -690,10 +690,19 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
   }
 }
 
-export function getTerrainAt(position: Vec2): { type: "estepa" | "mallin" | "pedregullo" | "roca"; speedMulti: number; humidityMulti: number } {
+export function getTerrainAt(position: Vec2): {
+  type: "estepa" | "mallin" | "pedregullo" | "roca";
+  speedMulti: number;
+  humidityMulti: number;
+} {
   // Simple procedural regionalization using coords
   const dist = distanceSq(position, { x: 0, z: 0 });
-  if (position.x > 10 && position.z > 15 && position.x < 35 && position.z < 35) {
+  if (
+    position.x > 10 &&
+    position.z > 15 &&
+    position.x < 35 &&
+    position.z < 35
+  ) {
     return { type: "mallin", speedMulti: 0.8, humidityMulti: 1.5 }; // Humid and slow
   }
   if (position.x < -15 && position.z < -10) {
@@ -800,21 +809,32 @@ function updateAnt(agent: Agent, world: WorldState) {
     agent.task = "idle";
     return;
   }
-  
+
   // Evasión dinámica de obstáculos masivos (Arañas y Porotermes)
   if (agent.faction === "acromyrmex" || agent.faction === "rival") {
-    const obstacles = world.agents.filter(o => o.alive && o.kind === "termite");
+    const obstacles = world.agents.filter(
+      (o) => o.alive && o.kind === "termite",
+    );
     for (const obs of obstacles) {
       if (distanceSq(agent.position, obs.position) < 6) {
-        const away = { x: agent.position.x - obs.position.x, z: agent.position.z - obs.position.z };
-        steer(agent, { x: agent.position.x + away.x, z: agent.position.z + away.z }, speed * 1.5);
+        const away = {
+          x: agent.position.x - obs.position.x,
+          z: agent.position.z - obs.position.z,
+        };
+        steer(
+          agent,
+          { x: agent.position.x + away.x, z: agent.position.z + away.z },
+          speed * 1.5,
+        );
       }
     }
   }
 
   // Comportamiento de Escarabajo: Degradación de rastros
   if (agent.kind === "beetle") {
-    const nearbyPheromones = world.pheromones.filter(p => distanceSq(p.position, agent.position) < 8);
+    const nearbyPheromones = world.pheromones.filter(
+      (p) => distanceSq(p.position, agent.position) < 8,
+    );
     for (const p of nearbyPheromones) {
       p.intensity *= 0.85; // Borra rastros químicos
     }
@@ -951,9 +971,13 @@ function updateAnt(agent: Agent, world: WorldState) {
     }
   } else if (agent.carrying > 0 || agent.task === "return") {
     steer(agent, agent.faction === "rival" ? RIVAL_NEST : NEST, speed);
-    
+
     // Rastros emergentes de forrajeo
-    if (agent.carrying > 0 && agent.faction === "acromyrmex" && world.tick % 20 === 0) {
+    if (
+      agent.carrying > 0 &&
+      agent.faction === "acromyrmex" &&
+      world.tick % 20 === 0
+    ) {
       emitPheromone(world, agent, "forage", agent.position, 10, 0.4);
     }
     if (
@@ -1034,7 +1058,7 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
   const flight =
     agent.kind === "wasp" || agent.kind === "bumblebee" || agent.kind === "fly";
   const speedMulti = flight ? 1.0 : terrain.speedMulti;
-  
+
   if (agent.kind === "wasp") {
     const target = world.spiders
       .filter(
@@ -1076,23 +1100,32 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     const exposedAnt =
       activeWasps < profile.attackerLimit
         ? world.agents
-            .filter(
-              (candidate) => {
-                if (!candidate.alive || candidate.kind !== "ant" || candidate.faction !== "acromyrmex") return false;
-                if (distanceSq(agent.position, candidate.position) >= 196 * profile.spiderSpeed) return false;
-                if (candidate.carrying === 0 && candidate.order === "autonomous") return false;
-                
-                // Filtro de aislamiento: solo caza hormigas con menos de 3 compañeras cerca
-                const nearbyAllies = world.agents.filter(other => 
-                  other.alive && 
-                  other.faction === "acromyrmex" && 
+            .filter((candidate) => {
+              if (
+                !candidate.alive ||
+                candidate.kind !== "ant" ||
+                candidate.faction !== "acromyrmex"
+              )
+                return false;
+              if (
+                distanceSq(agent.position, candidate.position) >=
+                196 * profile.spiderSpeed
+              )
+                return false;
+              if (candidate.carrying === 0 && candidate.order === "autonomous")
+                return false;
+
+              // Filtro de aislamiento: solo caza hormigas con menos de 3 compañeras cerca
+              const nearbyAllies = world.agents.filter(
+                (other) =>
+                  other.alive &&
+                  other.faction === "acromyrmex" &&
                   other.id !== candidate.id &&
-                  distanceSq(other.position, candidate.position) < 16
-                ).length;
-                
-                return nearbyAllies < 3;
-              }
-            )
+                  distanceSq(other.position, candidate.position) < 16,
+              ).length;
+
+              return nearbyAllies < 3;
+            })
             .sort(
               (a, b) =>
                 Number(b.carrying > 0) - Number(a.carrying > 0) ||
@@ -1130,7 +1163,11 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
         exposedAnt.task = "flee";
         agent.energy = clamp(agent.energy - 0.028, 0, 1);
         if (exposedAnt.integrity <= 0)
-          removeAgent(world, exposedAnt, "Una avispa derribó a la obrera aislada");
+          removeAgent(
+            world,
+            exposedAnt,
+            "Una avispa derribó a la obrera aislada",
+          );
       }
       return;
     }
@@ -1285,13 +1322,14 @@ function updateOtherFaction(agent: Agent, world: WorldState) {
     [world.rngState, jitter] = randomRange(world.rngState, -0.09, 0.09);
     agent.position.x = clamp(
       agent.position.x +
-        (Math.sin(world.tick * 0.018 + agent.id) * 0.055 +
-        jitter * 0.05) * speedMulti,
+        (Math.sin(world.tick * 0.018 + agent.id) * 0.055 + jitter * 0.05) *
+          speedMulti,
       -55,
       55,
     );
     agent.position.z = clamp(
-      agent.position.z + Math.cos(world.tick * 0.015 + agent.id) * 0.045 * speedMulti,
+      agent.position.z +
+        Math.cos(world.tick * 0.015 + agent.id) * 0.045 * speedMulti,
       -45,
       45,
     );
@@ -1622,12 +1660,16 @@ function updateEconomy(world: WorldState) {
   );
 
   // Auto-preservación del cultivo
-  if (world.fungusHealth < 0.25 && world.colonyPriority !== "forage" && world.tick % 600 === 0) {
+  if (
+    world.fungusHealth < 0.25 &&
+    world.colonyPriority !== "forage" &&
+    world.tick % 600 === 0
+  ) {
     world.colonyPriority = "forage";
     event(
       world,
       "phase-changed",
-      "¡Estado crítico del hongo! Las autónomas cambian a recolección urgente."
+      "¡Estado crítico del hongo! Las autónomas cambian a recolección urgente.",
     );
   }
   if (world.seasonPhase === 1 && world.colonyBiomass >= 18) {
@@ -1686,11 +1728,20 @@ function updateCampaign(world: WorldState) {
       world.metrics.minorThreatResolved
     ) {
       world.seasonPhase = 2;
-      event(world, "phase-changed", "Fase 2: Habitar - La colonia se establece", undefined);
+      event(
+        world,
+        "phase-changed",
+        "Fase 2: Habitar - La colonia se establece",
+        undefined,
+      );
     }
   } else if (world.seasonPhase === 2) {
-    const hasEnoughChambers = world.nest.chambers.fungus > 1 || world.nest.chambers.nursery > 1;
-    const isHealthy = world.fungusHealth > 0.6 && world.broodHealth > 0.6 && world.nest.hygiene > 0.5;
+    const hasEnoughChambers =
+      world.nest.chambers.fungus > 1 || world.nest.chambers.nursery > 1;
+    const isHealthy =
+      world.fungusHealth > 0.6 &&
+      world.broodHealth > 0.6 &&
+      world.nest.hygiene > 0.5;
     if (
       hasEnoughChambers &&
       isHealthy &&
@@ -1698,26 +1749,58 @@ function updateCampaign(world: WorldState) {
       world.metrics.routesEstablished
     ) {
       world.seasonPhase = 3;
-      event(world, "phase-changed", "Fase 3: Persistir - La colonia prospera", undefined);
+      event(
+        world,
+        "phase-changed",
+        "Fase 3: Persistir - La colonia prospera",
+        undefined,
+      );
     }
   } else if (world.seasonPhase === 3) {
     if (world.tick > 8500) {
       world.seasonPhase = 4;
-      event(world, "storm-started", "Tormenta patagónica: Caída térmica drástica", undefined);
+      event(
+        world,
+        "storm-started",
+        "Tormenta patagónica: Caída térmica drástica",
+        undefined,
+      );
     }
   } else if (world.seasonPhase === 4) {
     world.temperature = clamp(world.temperature - 0.05, 2, 20);
     world.rain = clamp(world.rain + 0.005, 0, 1);
     world.humidity = clamp(world.humidity + 0.01, 0, 1);
-    
+
     if (world.tick > 10500) {
-      const survived = world.colonyBiomass > 20 && world.fungusHealth > 0.3 && world.nest.hygiene > 0.3;
+      const survived =
+        world.colonyBiomass > 20 &&
+        world.fungusHealth > 0.3 &&
+        world.nest.hygiene > 0.3;
       if (survived) {
-        endMatch(world, "victory", `La colonia conservó suficiente biomasa y calor para atravesar la tormenta. Sobrevivientes: ${world.agents.filter(a => a.alive && a.faction === "acromyrmex").length}`);
+        endMatch(
+          world,
+          "victory",
+          `La colonia conservó suficiente biomasa y calor para atravesar la tormenta. Sobrevivientes: ${world.agents.filter((a) => a.alive && a.faction === "acromyrmex").length}`,
+        );
       } else {
-        if (world.colonyBiomass <= 20) endMatch(world, "defeat", "La reserva de biomasa se agotó durante la tormenta.");
-        else if (world.fungusHealth <= 0.3) endMatch(world, "defeat", "El hongo colapsó por exceso de frío y humedad.");
-        else endMatch(world, "defeat", "La contaminación de la colonia durante la tormenta fue letal.");
+        if (world.colonyBiomass <= 20)
+          endMatch(
+            world,
+            "defeat",
+            "La reserva de biomasa se agotó durante la tormenta.",
+          );
+        else if (world.fungusHealth <= 0.3)
+          endMatch(
+            world,
+            "defeat",
+            "El hongo colapsó por exceso de frío y humedad.",
+          );
+        else
+          endMatch(
+            world,
+            "defeat",
+            "La contaminación de la colonia durante la tormenta fue letal.",
+          );
       }
     }
   }

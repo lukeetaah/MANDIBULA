@@ -35,7 +35,8 @@ const speciesRoster: Array<{
     scientific: "Porotermes quadricollis",
     biome: "Bosque andino y estepa arbolada",
     style: "Ingeniería xilófaga defensiva",
-    strength: "Galerías de madera duras y sellado de pasajes contra depredadores",
+    strength:
+      "Galerías de madera duras y sellado de pasajes contra depredadores",
     risk: "Movilidad lenta y tasa de reproducción moderada",
     complexity: "Intermedio",
     desc: "Habitá estructuras de madera muerta. Cosechá celulosa y construí barreras de resina para aislar a las arañas de tus túneles.",
@@ -46,7 +47,8 @@ const speciesRoster: Array<{
     scientific: "Vespula germanica",
     biome: "Valles y estepa abierta",
     style: "Depredación aérea oportunista",
-    strength: "Alta velocidad de vuelo, movilidad tridimensional e intercepción",
+    strength:
+      "Alta velocidad de vuelo, movilidad tridimensional e intercepción",
     risk: "Sin hongo subterráneo; vulnerabilidad individual ante el frío",
     complexity: "Avanzado",
     desc: "Dominá el espacio aéreo patagónico. Patrullá desde perches elevados, interceptá presas expuestas y protegé tu avispero.",
@@ -57,7 +59,8 @@ const speciesRoster: Array<{
     scientific: "Bombus dahlbomii",
     biome: "Mallines y matorrales patagónicos",
     style: "Forrajero floral robusto",
-    strength: "Masa corporal resistente al viento y recolección eficiente por unidad",
+    strength:
+      "Masa corporal resistente al viento y recolección eficiente por unidad",
     risk: "Bajo número de obreras; cada baja es una pérdida costosa",
     complexity: "Especialista",
     desc: "Controlá a los gigantes florales del sur. Cosechá néctar y polen en mallines fríos con alta tolerancia al viento patagónico.",
@@ -106,8 +109,16 @@ export default function GameClient() {
       if (document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
       }
-      if (typeof screen !== "undefined" && screen.orientation && "lock" in screen.orientation) {
-        await (screen.orientation as unknown as { lock: (orientation: string) => Promise<void> }).lock("landscape");
+      if (
+        typeof screen !== "undefined" &&
+        screen.orientation &&
+        "lock" in screen.orientation
+      ) {
+        await (
+          screen.orientation as unknown as {
+            lock: (orientation: string) => Promise<void>;
+          }
+        ).lock("landscape");
       }
     } catch {
       // Non-blocking fallback if browser policy rejects lock
@@ -138,11 +149,16 @@ export default function GameClient() {
             <small>ESTRATEGIA ASIMÉTRICA VIVA</small>
           </h1>
           <p className="entry-lede">
-            Elegí tu facción. <strong>Cada especie habita, compite y sobrevive según su biología real.</strong>
+            Elegí tu facción.{" "}
+            <strong>
+              Cada especie habita, compite y sobrevive según su biología real.
+            </strong>
           </p>
 
           <div className="species-picker" aria-label="Especie jugable">
-            <small>FACCIÓN JUGABLE · CADA UNA CAMBIA EL NIDO, LA ECONOMÍA Y EL MAPA</small>
+            <small>
+              FACCIÓN JUGABLE · CADA UNA CAMBIA EL NIDO, LA ECONOMÍA Y EL MAPA
+            </small>
             <div className="species-grid">
               {speciesRoster.map((sp) => (
                 <button
@@ -152,7 +168,9 @@ export default function GameClient() {
                 >
                   <div className="species-header">
                     <b>{sp.name}</b>
-                    <small><i>{sp.scientific}</i></small>
+                    <small>
+                      <i>{sp.scientific}</i>
+                    </small>
                   </div>
                   <div className="species-tags">
                     <span>{sp.biome}</span>
@@ -202,7 +220,8 @@ export default function GameClient() {
             )}
           </div>
           <p className="entry-note">
-            ESTRATEGIA SISTÉMICA · CONTROLES TÁCTILES & DESKTOP · PARTIDA LOCAL 12–20 MIN
+            ESTRATEGIA SISTÉMICA · CONTROLES TÁCTILES & DESKTOP · PARTIDA LOCAL
+            12–20 MIN
           </p>
         </section>
         <div className="entry-signal" aria-hidden="true">
@@ -221,16 +240,29 @@ export default function GameClient() {
       style={{ "--ui-scale": settings.uiScale } as React.CSSProperties}
     >
       {isPortraitMobile && !dismissedPortraitPrompt && (
-        <div className="landscape-prompt-overlay" role="dialog" aria-label="Orientación recomendada">
+        <div
+          className="landscape-prompt-overlay"
+          role="dialog"
+          aria-label="Orientación recomendada"
+        >
           <div className="landscape-prompt-card">
             <i className="phone-rotate-icon" aria-hidden="true" />
             <h2>Giralo para ver el mapa, las unidades y el HUD completo.</h2>
-            <p>El juego está diseñado para pantallas horizontales en dispositivos móviles.</p>
+            <p>
+              El juego está diseñado para pantallas horizontales en dispositivos
+              móviles.
+            </p>
             <div className="landscape-prompt-actions">
-              <button className="primary-action" onClick={requestLandscapeOrientation}>
+              <button
+                className="primary-action"
+                onClick={requestLandscapeOrientation}
+              >
                 GIRAR / PANTALLA COMPLETA
               </button>
-              <button className="text-action" onClick={() => setDismissedPortraitPrompt(true)}>
+              <button
+                className="text-action"
+                onClick={() => setDismissedPortraitPrompt(true)}
+              >
                 Continuar en vertical
               </button>
             </div>

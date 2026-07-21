@@ -695,7 +695,7 @@ function SpiderBody({ id }: { id: number }) {
 function Pheromone({ field }: { field: PheromoneField }) {
   const color = signalColors[field.type];
   const group = useRef<THREE.Group>(null);
-  
+
   useFrame(({ clock }) => {
     if (!group.current) return;
     const pulse = 1 + Math.sin(clock.elapsedTime * 2 + field.id) * 0.05;
@@ -1276,7 +1276,7 @@ function OrderMarker() {
 
   useFrame(({ clock }) => {
     if (!group.current || !marker) return;
-    
+
     // Detectar nueva orden
     if (marker.serial !== prevSerial.current) {
       prevSerial.current = marker.serial;
@@ -1289,14 +1289,15 @@ function OrderMarker() {
       return;
     }
     group.current.visible = true;
-    
+
     // Animación de expansión rápida y desvanecimiento
     const progress = Math.min(1, timeSinceOrder / 1.2);
     const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-    
+
     group.current.scale.setScalar(1 + easeOutQuart * 2.5);
-    
-    const material = (group.current.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+
+    const material = (group.current.children[0] as THREE.Mesh)
+      .material as THREE.MeshBasicMaterial;
     if (material) {
       material.opacity = 0.85 * (1 - progress);
     }
@@ -1567,11 +1568,7 @@ function RTSInteractionPlane() {
       const canvas = gl.domElement.getBoundingClientRect();
       const pFaction = world.playerFaction || "acromyrmex";
       const selected = world.agents
-        .filter(
-          (agent) =>
-            agent.alive &&
-            agent.faction === pFaction,
-        )
+        .filter((agent) => agent.alive && agent.faction === pFaction)
         .filter((agent) => {
           const point = new THREE.Vector3(
             agent.position.x,
@@ -1597,13 +1594,24 @@ function RTSInteractionPlane() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [camera, clearSelection, gl, selectUnits, setSelectionBox, world.agents, world.playerFaction]);
+  }, [
+    camera,
+    clearSelection,
+    gl,
+    selectUnits,
+    setSelectionBox,
+    world.agents,
+    world.playerFaction,
+  ]);
 
   const pointerDown = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
     // Issue move on right click or on touch pointer when units are selected
     const selectedCount = useGameStore.getState().selectedIds.length;
-    if (event.button === 2 || (event.nativeEvent.pointerType === "touch" && selectedCount > 0)) {
+    if (
+      event.button === 2 ||
+      (event.nativeEvent.pointerType === "touch" && selectedCount > 0)
+    ) {
       issueMove({ x: event.point.x, z: event.point.z });
     }
     if (event.button === 0) {
@@ -1641,18 +1649,39 @@ export function GameScene() {
       <RenderBudget />
       <color
         attach="background"
-        args={[underground ? "#100c09" : world.seasonPhase === 4 ? "#2a363b" : tactical ? "#18231d" : "#78908a"]}
+        args={[
+          underground
+            ? "#100c09"
+            : world.seasonPhase === 4
+              ? "#2a363b"
+              : tactical
+                ? "#18231d"
+                : "#78908a",
+        ]}
       />
       <fog
         attach="fog"
         args={[
-          underground ? "#100c09" : world.seasonPhase === 4 ? "#2a363b" : tactical ? "#18231d" : "#73847c",
+          underground
+            ? "#100c09"
+            : world.seasonPhase === 4
+              ? "#2a363b"
+              : tactical
+                ? "#18231d"
+                : "#73847c",
           world.seasonPhase === 4 ? 20 : 46,
           world.seasonPhase === 4 ? 80 : 105,
         ]}
       />
-      <ambientLight intensity={tactical ? 1.08 : world.seasonPhase === 4 ? 0.6 : 1.28} color="#d9dfc0" />
-      <hemisphereLight intensity={world.seasonPhase === 4 ? 0.3 : 0.65} color="#c8ded1" groundColor="#5c452b" />
+      <ambientLight
+        intensity={tactical ? 1.08 : world.seasonPhase === 4 ? 0.6 : 1.28}
+        color="#d9dfc0"
+      />
+      <hemisphereLight
+        intensity={world.seasonPhase === 4 ? 0.3 : 0.65}
+        color="#c8ded1"
+        groundColor="#5c452b"
+      />
       <directionalLight
         intensity={world.seasonPhase === 4 ? 0.8 : 2.05}
         color={world.seasonPhase === 4 ? "#9ab4c2" : "#ffe1ae"}
