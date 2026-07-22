@@ -887,6 +887,19 @@ export function HUD() {
             <i className="trend-icon" />
           </span>
           <span
+            className={`trend-span ${world.rivalBiomass > 30 ? "trend-down" : ""}`}
+            title="BIOMASA RIVAL: Acumulación de la colonia rival. Si alcanza el objetivo, perderás la red."
+            aria-label={`Biomasa Rival ${Math.floor(world.rivalBiomass)}`}
+          >
+            <small style={{ color: "#e74c3c" }}>RIVAL</small>
+            <b
+              style={{ color: world.rivalBiomass > 35 ? "#ff5555" : "#e0aa3e" }}
+            >
+              {Math.floor(world.rivalBiomass)}/
+              {58 + ((world.era || 1) - 1) * 20}
+            </b>
+          </span>
+          <span
             className={`trend-span trend-${workersTrend.direction}`}
             title={`OBRERAS: ${workersTrend.reason}`}
             aria-label={`Obreras ${colony.length}, ${workersTrend.reason}`}

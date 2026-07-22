@@ -1,6 +1,6 @@
 "use client";
 
-import { Line, useTexture } from "@react-three/drei";
+import { Html, Line, useTexture } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -977,6 +977,43 @@ function Nest() {
   );
 }
 
+function RivalNest() {
+  return (
+    <group position={[37, 0, -28]}>
+      <mesh position={[0, 0.35, 0]} scale={[3.2, 0.7, 2.8]} receiveShadow>
+        <dodecahedronGeometry args={[1, 1]} />
+        <meshStandardMaterial color="#6e382b" roughness={0.95} />
+      </mesh>
+      <mesh position={[0.5, 0.55, -0.4]} scale={[2.1, 0.6, 1.9]} receiveShadow>
+        <dodecahedronGeometry args={[1, 1]} />
+        <meshStandardMaterial color="#844133" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.71, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.2, 0.65, 12]} />
+        <meshBasicMaterial color="#1a0a08" />
+      </mesh>
+      <Html position={[0, 2.2, 0]} center>
+        <div
+          style={{
+            background: "rgba(180, 40, 30, 0.88)",
+            border: "1px solid #ff6666",
+            borderRadius: "4px",
+            padding: "2px 6px",
+            color: "#fff",
+            fontSize: "10px",
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            boxShadow: "0 0 8px rgba(255, 68, 68, 0.6)",
+            pointerEvents: "none",
+          }}
+        >
+          🐜 NIDO RIVAL
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 function UndergroundNest() {
   const nest = useGameStore((state) => state.world.nest);
   const chambers = [
@@ -1699,6 +1736,7 @@ export function GameScene() {
         <>
           <ProceduralTerrain />
           <Nest />
+          <RivalNest />
           <ResourceNodes />
           <Webs />
           <AntColony />

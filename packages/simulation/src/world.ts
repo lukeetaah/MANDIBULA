@@ -643,7 +643,6 @@ function applyCommands(world: WorldState, commands: readonly SimCommand[]) {
         (candidate) =>
           candidate.id === targetId &&
           candidate.alive &&
-          candidate.kind !== "ant" &&
           candidate.faction !== agent.faction,
       );
       const target = spider ?? fauna;
@@ -908,25 +907,48 @@ function updateAnt(agent: Agent, world: WorldState) {
         agent.energy = clamp(agent.energy - 0.0014, 0.15, 1);
       } else if (faunaTarget) {
         const defenseFocus = world.colonyPriority === "defend" ? 1.3 : 1;
+        const damage = faunaTarget.faction === "rival" ? 0.02 : 0.0045;
         faunaTarget.integrity = clamp(
-          faunaTarget.integrity - 0.0045 * defenseFocus,
+          faunaTarget.integrity - damage * defenseFocus,
           0,
           1,
         );
-        faunaTarget.task = "flee";
+        if (faunaTarget.faction === "rival" && faunaTarget.carrying > 0) {
+          world.resources.push({
+            id: id(world),
+            kind: "leaf",
+            position: { ...faunaTarget.position },
+            amount: 15,
+          });
+          faunaTarget.carrying = 0;
+        } else {
+          faunaTarget.task = "flee";
+        }
         agent.energy = clamp(agent.energy - 0.001, 0.15, 1);
         if (faunaTarget.integrity <= 0) {
-          removeAgent(
-            world,
-            faunaTarget,
-            "La patrulla expulsó un individuo del corredor",
-          );
-          event(
-            world,
-            "fauna-repelled",
-            "La presión colectiva liberó el corredor",
-            faunaTarget.id,
-          );
+          if (faunaTarget.faction === "rival") {
+            world.rivalBiomass = Math.max(0, world.rivalBiomass - 4);
+            world.resources.push({
+              id: id(world),
+              kind: "leaf",
+              position: { ...faunaTarget.position },
+              amount: 20,
+            });
+            event(
+              world,
+              "fauna-repelled",
+              "¡ENFRENTAMIENTO EXITOSO! Tu patrulla eliminó una obrera rival y recuperó hojarasca.",
+              faunaTarget.id,
+            );
+          } else {
+            event(
+              world,
+              "fauna-repelled",
+              "La presión colectiva liberó el corredor",
+              faunaTarget.id,
+            );
+          }
+          removeAgent(world, faunaTarget, "Individuo eliminado del corredor");
         }
       }
       agent.position.x += agent.velocity.x;
