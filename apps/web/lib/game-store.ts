@@ -194,12 +194,10 @@ function commandsFor(
 }
 
 function commandableIds(state: GameStore): number[] {
+  const pf = state.playerFaction;
   const valid = new Set(
     state.world.agents
-      .filter(
-        (agent) =>
-          agent.alive && agent.kind === "ant" && agent.faction === "acromyrmex",
-      )
+      .filter((agent) => agent.alive && agent.faction === pf)
       .map((agent) => agent.id),
   );
   return state.selectedIds.filter((id) => valid.has(id));
@@ -302,14 +300,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   selectUnits: (ids, additive = false) => {
     const state = get();
+    const pf = state.playerFaction;
     const allowed = new Set(
       state.world.agents
-        .filter(
-          (agent) =>
-            agent.alive &&
-            agent.kind === "ant" &&
-            agent.faction === "acromyrmex",
-        )
+        .filter((agent) => agent.alive && agent.faction === pf)
         .map((agent) => agent.id),
     );
     const next = ids.filter((id) => allowed.has(id));

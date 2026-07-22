@@ -2111,28 +2111,28 @@ button {
 .species-picker {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   max-width: 900px;
-  margin: 10px auto;
+  margin: 16px auto;
 }
 .species-picker small {
   color: #89927f;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.12em;
 }
 .species-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 .species-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 8px;
+  padding: 14px 16px;
   background: rgba(20, 26, 18, 0.7);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--ink);
   text-align: left;
   cursor: pointer;
@@ -2149,23 +2149,23 @@ button {
 }
 .species-header b {
   display: block;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--ink);
 }
 .species-header small {
   color: var(--cyan);
-  font-size: 9px;
+  font-size: 11px;
 }
 .species-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
 }
 .species-tags span {
-  font-size: 7px;
-  padding: 2px 6px;
+  font-size: 9px;
+  padding: 3px 8px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 2px;
+  border-radius: 3px;
   color: #a0a894;
 }
 .species-tags .complexity {
@@ -2173,21 +2173,21 @@ button {
   background: rgba(220, 180, 92, 0.12);
 }
 .species-card p {
-  font-size: 9px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.5;
   color: #b0b8a4;
   margin: 0;
 }
 .species-stats {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 .species-stats small {
-  font-size: 8px;
+  font-size: 10px;
   color: #8fa082;
 }
 
