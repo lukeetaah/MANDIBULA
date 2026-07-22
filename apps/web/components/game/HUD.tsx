@@ -76,19 +76,19 @@ const signalLabels = {
 
 const faunaProfiles = {
   wasp: {
-    name: "VESPULA (Avispa)",
+    name: "AVISPA (Vespula)",
     role: "INTERCEPTORA AÉREA",
     effect:
       "Hostiga arañas pequeñas y puede cazar hormigas obreras aisladas. Mantené a tu patrulla unida.",
   },
   bumblebee: {
-    name: "BOMBUS (Abejorro)",
+    name: "ABEJORRO (Bombus)",
     role: "CIRCUITO FLORAL",
     effect:
       "Inofensivo. Poliniza flores del mallín y suele evitar zonas pobladas o telas de araña.",
   },
   termite: {
-    name: "POROTERMES (Termita)",
+    name: "TERMITA (Porotermes)",
     role: "INGENIERÍA DE MADERA",
     effect:
       "Sella corredores y bloquea el paso cuando percibe vibraciones de depredadores (arañas).",
@@ -106,7 +106,7 @@ const faunaProfiles = {
       "Caza a ras del suelo y borra tus rastros químicos. Una patrulla densa puede repelerlo.",
   },
   ant: {
-    name: "COLONIA RIVAL",
+    name: "HORMIGA RIVAL (Acromyrmex)",
     role: "COMPETENCIA TERRITORIAL",
     effect:
       "Disputa tus fuentes de alimento y puede agotar recursos antes de que llegues.",
@@ -755,6 +755,62 @@ export function HUD() {
               target: 0.3,
               note: "La estepa se congela. Protegé el hongo y conservá biomasa.",
             };
+  const eraBiomassTarget = 52 + ((world.era || 1) - 1) * 45;
+  const missionDisplay =
+    world.seasonPhase === 2 && chamberTotal >= 7
+      ? world.colonyBiomass < 28
+        ? {
+            ...mission,
+            title: "Reservá biomasa para sostener la cría.",
+            current: world.colonyBiomass,
+            target: 28,
+            note: "La red ya tiene espacio; asegurá reservas para ocuparla.",
+          }
+        : {
+            ...mission,
+            title: "Estabilizá la cría antes de expandirte.",
+            current: world.broodHealth * 100,
+            target: 62,
+            note: "La arquitectura y el hongo deben recuperar la cría.",
+          }
+      : world.seasonPhase === 3 && world.colonyBiomass >= eraBiomassTarget
+        ? world.fungusHealth < 0.52
+          ? {
+              ...mission,
+              title: "Estabilizá el hongo para resistir.",
+              current: world.fungusHealth * 100,
+              target: 52,
+              note: "Las reservas ya están listas; el cultivo sigue siendo vulnerable.",
+            }
+          : {
+              ...mission,
+              title: "Saneá el nido antes del invierno.",
+              current: world.nest.hygiene * 100,
+              target: 50,
+              note: "La biomasa y el hongo alcanzan; falta higiene para cerrar la era.",
+            }
+        : world.seasonPhase === 4
+          ? world.colonyBiomass < 45
+            ? {
+                ...mission,
+                title: "Conservá reservas durante la tormenta.",
+                current: world.colonyBiomass,
+                target: 45,
+              }
+            : world.fungusHealth <= 0.25
+              ? {
+                  ...mission,
+                  title: "Protegé el hongo del frío y la humedad.",
+                  current: world.fungusHealth * 100,
+                  target: 25,
+                }
+              : {
+                  ...mission,
+                  title: "Mantené el nido limpio durante la tormenta.",
+                  current: world.nest.hygiene * 100,
+                  target: 25,
+                }
+          : mission;
   const fungusTrend = useMetricTrend(world.fungusHealth, "fungus");
   const biomassTrend = useMetricTrend(world.colonyBiomass, "biomass");
   const workersTrend = useMetricTrend(colony.length, "workers");
@@ -985,13 +1041,13 @@ export function HUD() {
           {mission.kicker} · {Math.max(0, 20 - Math.floor(world.tick / 600))}:00
         </small>
         <div>
-          <h2>{mission.title}</h2>
+          <h2>{missionDisplay.title}</h2>
           <b>
-            {Math.floor(mission.current)} <i>/ {mission.target}</i>
+            {Math.floor(missionDisplay.current)} <i>/ {missionDisplay.target}</i>
           </b>
         </div>
-        <Meter value={mission.current / mission.target} />
-        <p>{mission.note}</p>
+        <Meter value={missionDisplay.current / missionDisplay.target} />
+        <p>{missionDisplay.note}</p>
       </section>
 
       <section className={`tutorial-beacon step-${world.tutorialStep}`}>
@@ -1200,7 +1256,29 @@ export function HUD() {
 
       {!underground && (
         <section className="fauna-key" aria-label="Fauna activa">
-          <small>RED VIVA · CLIC PARA IDENTIFICAR</small>
+          <small style={{ fontSize: "9px", fontWeight: 700, color: "#8abdb0" }}>
+            RED VIVA · CLIC PARA IDENTIFICAR
+          </small>
+          {/* Spider entry in Red Viva */}
+          {(() => {
+            const spiders = world.spiders.filter((s) => s.visible);
+            const specimen = spiders[0];
+            return (
+              <button
+                key="spider"
+                className="fauna-spider"
+                disabled={!specimen}
+                onClick={() => specimen && inspect("spider", specimen.id)}
+              >
+                <i style={{ background: "#ff4444" }} />
+                <span>
+                  <b style={{ fontSize: "11px" }}>ARAÑA (Depredador)</b>
+                  <small style={{ fontSize: "8px" }}>AMENAZA DE CAZA</small>
+                </span>
+                <em>{spiders.length}</em>
+              </button>
+            );
+          })()}
           {(["wasp", "bumblebee", "termite", "fly", "beetle"] as const).map(
             (kind) => {
               const population = world.agents.filter(
@@ -1216,8 +1294,8 @@ export function HUD() {
                 >
                   <i />
                   <span>
-                    <b>{faunaProfiles[kind].name}</b>
-                    <small>{faunaProfiles[kind].role}</small>
+                    <b style={{ fontSize: "11px" }}>{faunaProfiles[kind].name}</b>
+                    <small style={{ fontSize: "8px" }}>{faunaProfiles[kind].role}</small>
                   </span>
                   <em>{population.length}</em>
                 </button>

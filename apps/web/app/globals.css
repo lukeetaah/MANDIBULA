@@ -767,21 +767,22 @@ button {
   position: absolute;
   right: 20px;
   bottom: 178px;
-  width: 210px;
-  padding: 8px;
+  width: 250px;
+  padding: 10px;
   display: grid;
-  gap: 3px;
-  border: 1px solid rgba(101, 216, 207, 0.2);
-  background: rgba(11, 16, 12, 0.86);
-  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(7px);
+  gap: 4px;
+  border: 1px solid rgba(101, 216, 207, 0.35);
+  background: rgba(11, 16, 12, 0.92);
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
   pointer-events: auto;
 }
 .fauna-key > small {
-  padding: 2px 3px 5px;
-  color: #6f998f;
-  font-size: 6px;
-  letter-spacing: 0.13em;
+  padding: 2px 4px 6px;
+  color: #8abdb0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
 }
 .fauna-key button {
   min-height: 29px;

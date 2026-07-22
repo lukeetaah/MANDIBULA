@@ -367,6 +367,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const world = { ...state.world };
     for (let index = 0; index < state.timeScale; index += 1)
       stepWorld(world, index === 0 ? state.pending : []);
+    // A fast speed chosen earlier still satisfies the tutorial requirement.
+    if (state.timeScale > 1 && world.tutorialStep === 5)
+      world.tutorialStep = 6;
     const alive = new Set(
       world.agents.filter((agent) => agent.alive).map((agent) => agent.id),
     );
@@ -523,13 +526,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return { difficulty, world };
     }),
   setUnderground: (underground) =>
-    set((state) => ({
-      underground,
-      world:
-        underground && state.world.tutorialStep === 6
-          ? { ...state.world, tutorialStep: 7 }
-          : state.world,
-    })),
+    set((state) => {
+      let world = state.world;
+      if (!underground) {
+        world = structuredClone(state.world);
+        for (const agent of world.agents) {
+          agent.velocity = { x: 0, z: 0 };
+        }
+      } else if (state.world.tutorialStep === 6) {
+        world = { ...state.world, tutorialStep: 7 };
+      }
+      return { underground, world };
+    }),
   inspect: (kind, id) =>
     set((state) => ({
       observed: { kind, id },

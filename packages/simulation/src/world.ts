@@ -1831,50 +1831,49 @@ function updateCampaign(world: WorldState) {
       );
     }
   } else if (world.seasonPhase === 3) {
-    if (world.tick > 8500) {
+    if (world.tick > 7000 || world.colonyBiomass >= 52) {
       world.seasonPhase = 4;
       event(
         world,
         "storm-started",
-        "Tormenta patagónica: Caída térmica drástica",
+        "Llegada del Invierno: Tormenta patagónica y caída térmica drástica",
         undefined,
       );
     }
   } else if (world.seasonPhase === 4) {
-    world.temperature = clamp(world.temperature - 0.05, 2, 20);
-    world.rain = clamp(world.rain + 0.005, 0, 1);
-    world.humidity = clamp(world.humidity + 0.01, 0, 1);
+    world.temperature = clamp(world.temperature - 0.08, 2, 20);
+    world.rain = clamp(world.rain + 0.008, 0, 1);
+    world.humidity = clamp(world.humidity + 0.015, 0, 1);
 
-    if (world.tick > 10500) {
+    if (world.tick > 8000 || world.colonyBiomass >= 52) {
       const survived =
-        world.colonyBiomass > 20 &&
-        world.fungusHealth > 0.3 &&
-        world.nest.hygiene > 0.3;
+        world.colonyBiomass >= 45 &&
+        world.fungusHealth > 0.25 &&
+        world.nest.hygiene > 0.25;
       if (survived) {
         endMatch(
           world,
           "victory",
-          `La colonia conservó suficiente biomasa y calor para atravesar la tormenta. Sobrevivientes: ${world.agents.filter((a) => a.alive && a.faction === "acromyrmex").length}`,
+          `¡La colonia atravesó el invierno con éxito! Sobrevivientes: ${world.agents.filter((a) => a.alive && a.faction === "acromyrmex").length}`,
+        );
+      } else if (world.colonyBiomass < 45) {
+        endMatch(
+          world,
+          "defeat",
+          "La reserva de biomasa se agotó durante la tormenta.",
+        );
+      } else if (world.fungusHealth <= 0.3) {
+        endMatch(
+          world,
+          "defeat",
+          "El hongo colapsó por exceso de frío y humedad.",
         );
       } else {
-        if (world.colonyBiomass <= 20)
-          endMatch(
-            world,
-            "defeat",
-            "La reserva de biomasa se agotó durante la tormenta.",
-          );
-        else if (world.fungusHealth <= 0.3)
-          endMatch(
-            world,
-            "defeat",
-            "El hongo colapsó por exceso de frío y humedad.",
-          );
-        else
-          endMatch(
-            world,
-            "defeat",
-            "La contaminación de la colonia durante la tormenta fue letal.",
-          );
+        endMatch(
+          world,
+          "defeat",
+          "La contaminación de la colonia durante la tormenta fue letal.",
+        );
       }
     }
   }

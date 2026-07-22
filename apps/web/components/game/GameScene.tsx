@@ -1004,6 +1004,28 @@ function RivalNest() {
   );
 }
 
+function SeasonalEffects() {
+  const seasonPhase = useGameStore((state) => state.world.seasonPhase);
+  if (seasonPhase !== 4) return null;
+  return (
+    <group position={[0, 0, 0]}>
+      {Array.from({ length: 50 }, (_, i) => (
+        <mesh
+          key={i}
+          position={[
+            (i % 10) * 12 - 55,
+            3 + (i % 5) * 2,
+            Math.floor(i / 10) * 10 - 25,
+          ]}
+        >
+          <sphereGeometry args={[0.09, 6, 6]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.65} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function UndergroundNest() {
   const nest = useGameStore((state) => state.world.nest);
   const chambers = [
@@ -1740,6 +1762,7 @@ export function GameScene() {
               .map((field) => <Pheromone key={field.id} field={field} />)}
           <SelectionPaths />
           <OrderMarker />
+          <SeasonalEffects />
           <RTSInteractionPlane />
         </>
       )}
