@@ -734,11 +734,14 @@ function updatePheromones(world: WorldState) {
   for (const field of world.pheromones) {
     field.age += 1;
     const weatherLoss = 1 + world.rain * 7 + length(world.wind) * 0.08;
-    field.intensity -= field.decay * weatherLoss;
+    field.intensity -= field.decay * weatherLoss * 1.5;
   }
   world.pheromones = world.pheromones.filter(
-    (field) => field.intensity > 0.015 && field.age < 3600,
+    (field) => field.intensity > 0.05 && field.age < 1800,
   );
+  if (world.pheromones.length > 12) {
+    world.pheromones = world.pheromones.slice(-12);
+  }
 }
 
 function steer(agent: Agent, target: Vec2, speed: number) {

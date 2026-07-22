@@ -698,36 +698,26 @@ function SpiderBody({ id }: { id: number }) {
   );
 }
 
-function Pheromone({ field }: { field: PheromoneField }) {
+const Pheromone = memo(function Pheromone({
+  field,
+}: {
+  field: PheromoneField;
+}) {
   const color = signalColors[field.type];
-  const group = useRef<THREE.Group>(null);
-
-  useFrame(({ clock }) => {
-    if (!group.current) return;
-    const pulse = 1 + Math.sin(clock.elapsedTime * 2 + field.id) * 0.05;
-    group.current.scale.setScalar(pulse);
-  });
-
   return (
-    <group ref={group} position={[field.position.x, 0.05, field.position.z]}>
-      {[0.44, 0.72, 1].map((factor) => (
-        <mesh
-          key={factor}
-          rotation={[-Math.PI / 2, 0, 0]}
-          scale={field.radius * factor}
-        >
-          <ringGeometry args={[0.94, 1, 48]} />
-          <meshBasicMaterial
-            color={color}
-            transparent
-            opacity={Math.max(0.04, field.intensity * (0.28 - factor * 0.06))}
-            depthWrite={false}
-          />
-        </mesh>
-      ))}
+    <group position={[field.position.x, 0.05, field.position.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} scale={field.radius * 0.85}>
+        <ringGeometry args={[0.92, 1, 24]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={Math.min(0.18, Math.max(0.04, field.intensity * 0.15))}
+          depthWrite={false}
+        />
+      </mesh>
     </group>
   );
-}
+});
 
 function ProceduralTerrain() {
   const paintedGround = useTexture("/art/patagonia-ground-painted.webp");
@@ -1744,10 +1734,10 @@ export function GameScene() {
           {world.spiders.map((spider) => (
             <SpiderBody key={spider.id} id={spider.id} />
           ))}
-          {(tactical || world.tutorialStep >= 4) &&
-            world.pheromones.map((field) => (
-              <Pheromone key={field.id} field={field} />
-            ))}
+          {tactical &&
+            world.pheromones
+              .slice(-8)
+              .map((field) => <Pheromone key={field.id} field={field} />)}
           <SelectionPaths />
           <OrderMarker />
           <RTSInteractionPlane />
