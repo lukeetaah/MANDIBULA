@@ -646,6 +646,7 @@ export function HUD() {
   const selectUnits = useGameStore((state) => state.selectUnits);
   const togglePause = useGameStore((state) => state.togglePause);
   const restart = useGameStore((state) => state.restart);
+  const nextEra = useGameStore((state) => state.nextEra);
   const sound = useGameStore((state) => state.settings.sound);
   const intenseSounds = useGameStore((state) => state.settings.intenseSounds);
   const subtitles = useGameStore((state) => state.settings.subtitles);
@@ -862,7 +863,7 @@ export function HUD() {
           <div>
             <b>MANDÍBULA</b>
             <span>
-              {(world.playerFaction || "acromyrmex").toUpperCase()} · RED 01
+              ACROMYRMEX · ERA {world.era || 1} (NIVEL {world.colonyLevel || 1})
             </span>
           </div>
         </div>
@@ -1427,7 +1428,38 @@ export function HUD() {
               <p>✓ Recolección eficiente durante la partida.</p>
             )}
           </div>
-          <button onClick={restart}>NUEVA COLONIA</button>
+          {world.status === "victory" && (
+            <div className="evolution-reward-box">
+              <small>
+                HERENCIA GENÉTICA DESBLOQUEADA · ERA {(world.era || 1) + 1}
+              </small>
+              <b>
+                {(world.colonyLevel || 1) === 1
+                  ? "🧬 Quitina Reforzada Patagónica (+25% Carga, +15% Armadura, Obreras Doradas)"
+                  : (world.colonyLevel || 1) === 2
+                    ? "🧬 Feromona de Asalto & Espinas Cuticulares (+30% Ataque, +20% Velocidad)"
+                    : "🧬 Superorganismo Eosférico Patagónico (Jardín Fúngico Ultra-rendimiento)"}
+              </b>
+            </div>
+          )}
+          <div className="end-actions">
+            {world.status === "victory" ? (
+              <>
+                <button
+                  className="primary-action next-era-btn"
+                  onClick={nextEra}
+                >
+                  EVOLUCIONAR A ERA {(world.era || 1) + 1} (NIVEL{" "}
+                  {(world.colonyLevel || 1) + 1}) ➔
+                </button>
+                <button className="text-action" onClick={restart}>
+                  Reiniciar desde cero (Era I)
+                </button>
+              </>
+            ) : (
+              <button onClick={restart}>NUEVA COLONIA</button>
+            )}
+          </div>
         </div>
       )}
       {diagnostics && <Diagnostics />}

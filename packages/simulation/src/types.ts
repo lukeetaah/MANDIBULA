@@ -163,6 +163,8 @@ export interface WorldState {
   fungusHealth: number;
   broodHealth: number;
   seasonPhase: 1 | 2 | 3 | 4; // 1: Reactivate, 2: Inhabit, 3: Persist, 4: Storm (End)
+  colonyLevel: number;
+  era: number;
   colonyPriority: ColonyPriority;
   nest: NestState;
   tutorialStep: number;

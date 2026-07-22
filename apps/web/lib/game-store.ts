@@ -78,6 +78,7 @@ interface GameStore {
   pending: SimCommand[];
   begin: (resume?: boolean) => void;
   restart: () => void;
+  nextEra: () => void;
   tick: () => void;
   selectUnits: (ids: number[], additive?: boolean) => void;
   clearSelection: () => void;
@@ -261,6 +262,94 @@ export const useGameStore = create<GameStore>((set, get) => ({
       coachedEvents: [],
       pending: [],
     });
+  },
+  nextEra: () => {
+    const current = get().world;
+    const nextLevel = (current.colonyLevel || 1) + 1;
+    const nextEra = (current.era || 1) + 1;
+    const world = structuredClone(current);
+    world.status = "playing";
+    world.statusReason = "";
+    world.tick = 0;
+    world.colonyLevel = nextLevel;
+    world.era = nextEra;
+    world.seasonPhase = 1;
+    const bonusCount = 10;
+    for (let i = 0; i < bonusCount; i += 1) {
+      world.agents.push({
+        id: world.nextId++,
+        kind: "ant",
+        faction: "acromyrmex",
+        position: {
+          x: (Math.random() - 0.5) * 4,
+          z: (Math.random() - 0.5) * 4,
+        },
+        velocity: { x: 0, z: 0 },
+        energy: 1,
+        integrity: 1,
+        carrying: 0,
+        task: "idle",
+        targetId: null,
+        order: "autonomous",
+        destination: null,
+        age: 0,
+        alive: true,
+        controlled: false,
+        poisonedTicks: 0,
+      });
+    }
+    world.resources = [
+      {
+        id: world.nextId++,
+        kind: "leaf",
+        position: { x: 10, z: 8 },
+        amount: 65,
+      },
+      {
+        id: world.nextId++,
+        kind: "leaf",
+        position: { x: -10, z: -8 },
+        amount: 55,
+      },
+      {
+        id: world.nextId++,
+        kind: "leaf",
+        position: { x: 18, z: 14 },
+        amount: 60,
+      },
+      {
+        id: world.nextId++,
+        kind: "seed",
+        position: { x: -20, z: 15 },
+        amount: 45,
+      },
+      {
+        id: world.nextId++,
+        kind: "nectar",
+        position: { x: 22, z: 24 },
+        amount: 50,
+      },
+      {
+        id: world.nextId++,
+        kind: "deadwood",
+        position: { x: -30, z: -22 },
+        amount: 75,
+      },
+    ];
+    set({
+      world,
+      started: true,
+      tactical: false,
+      underground: false,
+      observed: null,
+      selectedIds: [],
+      selectionBox: null,
+      orderMarker: null,
+      coach: null,
+      coachedEvents: [],
+      pending: [],
+    });
+    localStorage.setItem(SAVE_KEY, serializeSnapshot(world));
   },
   tick: () => {
     const state = get();

@@ -163,6 +163,8 @@ export function createWorld(
     fungusHealth: initialFungus,
     broodHealth: 0.8,
     seasonPhase: 1,
+    colonyLevel: 1,
+    era: 1,
     colonyPriority: "forage",
     nest: {
       chambers: { fungus: 1, nursery: 1, ventilation: 1, waste: 0 },

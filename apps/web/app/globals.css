@@ -2247,6 +2247,49 @@ button {
   margin-top: 8px;
 }
 
+.evolution-reward-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: rgba(220, 180, 92, 0.12);
+  border: 1px solid var(--amber);
+  border-radius: 6px;
+  margin: 10px 0;
+  text-align: center;
+}
+.evolution-reward-box small {
+  color: var(--amber);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+.evolution-reward-box b {
+  color: var(--ink);
+  font-size: 12px;
+}
+.end-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+}
+.next-era-btn {
+  background: linear-gradient(135deg, #c7e86a, #829946) !important;
+  color: #10150f !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.08em !important;
+  padding: 12px 18px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 16px rgba(199, 232, 106, 0.3) !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease !important;
+}
+.next-era-btn:hover {
+  transform: scale(1.02);
+}
+
 @media (max-width: 760px) {
   .difficulty-picker {
     width: calc(100vw - 50px);

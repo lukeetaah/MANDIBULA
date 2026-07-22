@@ -248,17 +248,23 @@ function AntColony() {
         ),
       );
 
+      const cLevel = world.colonyLevel || 1;
+      const levelScale = 1 + (cLevel - 1) * 0.14;
       const size = agent.alive
-        ? agent.faction === "acromyrmex"
-          ? 1
-          : 0.88
+        ? (agent.faction === "acromyrmex" ? 1 : 0.88) * levelScale
         : 0.42;
       scale.setScalar(size);
 
       matrix.compose(position, quaternion, scale);
       mesh.current.setMatrixAt(antIndex, matrix);
 
-      color.set(agent.alive ? factionColors[agent.faction] : "#30291f");
+      const levelColor =
+        cLevel >= 3
+          ? "#e59866"
+          : cLevel === 2
+            ? "#d4ac0d"
+            : factionColors[agent.faction] || "#17130f";
+      color.set(agent.alive ? levelColor : "#30291f");
       mesh.current.setColorAt(antIndex, color);
 
       antIndex++;
