@@ -5,67 +5,6 @@ import { useEffect, useState } from "react";
 import { GameScene } from "./GameScene";
 import { HUD } from "./HUD";
 import { hasLocalSave, useGameStore } from "@/lib/game-store";
-import { type FactionId } from "@mandibula/simulation";
-
-const speciesRoster: Array<{
-  id: FactionId;
-  name: string;
-  scientific: string;
-  biome: string;
-  style: string;
-  strength: string;
-  risk: string;
-  complexity: string;
-  desc: string;
-}> = [
-  {
-    id: "acromyrmex",
-    name: "Hormiga Cortadora de Hojas",
-    scientific: "Acromyrmex lobicornis",
-    biome: "Estepa y monte norpatagónico",
-    style: "Enjambre subterráneo agrícola",
-    strength: "Gran masa obrera y economía fúngica de alto rendimiento",
-    risk: "Dependencia crítica de higiene y ventilación del nido",
-    complexity: "Recomendado · Estándar",
-    desc: "Fundá un superorganismo subterráneo. Cosechá hojas, cultivá el hongo simbiótico y expandí cámaras para sostener la colonia.",
-  },
-  {
-    id: "porotermes",
-    name: "Termita de Madera Patagónica",
-    scientific: "Porotermes quadricollis",
-    biome: "Bosque andino y estepa arbolada",
-    style: "Ingeniería xilófaga defensiva",
-    strength:
-      "Galerías de madera duras y sellado de pasajes contra depredadores",
-    risk: "Movilidad lenta y tasa de reproducción moderada",
-    complexity: "Intermedio",
-    desc: "Habitá estructuras de madera muerta. Cosechá celulosa y construí barreras de resina para aislar a las arañas de tus túneles.",
-  },
-  {
-    id: "vespula",
-    name: "Avispa Patagónica",
-    scientific: "Vespula germanica",
-    biome: "Valles y estepa abierta",
-    style: "Depredación aérea oportunista",
-    strength:
-      "Alta velocidad de vuelo, movilidad tridimensional e intercepción",
-    risk: "Sin hongo subterráneo; vulnerabilidad individual ante el frío",
-    complexity: "Avanzado",
-    desc: "Dominá el espacio aéreo patagónico. Patrullá desde perches elevados, interceptá presas expuestas y protegé tu avispero.",
-  },
-  {
-    id: "bombus",
-    name: "Abejorro Patagónico (Moscardón)",
-    scientific: "Bombus dahlbomii",
-    biome: "Mallines y matorrales patagónicos",
-    style: "Forrajero floral robusto",
-    strength:
-      "Masa corporal resistente al viento y recolección eficiente por unidad",
-    risk: "Bajo número de obreras; cada baja es una pérdida costosa",
-    complexity: "Especialista",
-    desc: "Controlá a los gigantes florales del sur. Cosechá néctar y polen en mallines fríos con alta tolerancia al viento patagónico.",
-  },
-];
 
 export default function GameClient() {
   const started = useGameStore((state) => state.started);
@@ -74,8 +13,7 @@ export default function GameClient() {
   const settings = useGameStore((state) => state.settings);
   const difficulty = useGameStore((state) => state.difficulty);
   const setDifficulty = useGameStore((state) => state.setDifficulty);
-  const playerFaction = useGameStore((state) => state.playerFaction);
-  const setSpecies = useGameStore((state) => state.setSpecies);
+
   const [canResume, setCanResume] = useState(false);
   const [isPortraitMobile, setIsPortraitMobile] = useState(false);
   const [dismissedPortraitPrompt, setDismissedPortraitPrompt] = useState(false);
@@ -142,50 +80,16 @@ export default function GameClient() {
         </div>
         <section className="entry-copy">
           <div className="eyebrow">
-            <i /> ECOSISTEMA PATAGÓNICO · SELECCIÓN DE ESPECIE
+            <i /> ECOSISTEMA PATAGÓNICO · SIMULACIÓN SISTÉMICA
           </div>
           <h1>
             <span>MANDÍBULA</span>
             <small>ESTRATEGIA ASIMÉTRICA VIVA</small>
           </h1>
           <p className="entry-lede">
-            Elegí tu facción.{" "}
-            <strong>
-              Cada especie habita, compite y sobrevive según su biología real.
-            </strong>
+            Goberná una colonia de <strong>Acromyrmex lobicornis</strong> en la
+            estepa patagónica.
           </p>
-
-          <div className="species-picker" aria-label="Especie jugable">
-            <small>
-              FACCIÓN JUGABLE · CADA UNA CAMBIA EL NIDO, LA ECONOMÍA Y EL MAPA
-            </small>
-            <div className="species-grid">
-              {speciesRoster.map((sp) => (
-                <button
-                  key={sp.id}
-                  className={`species-card ${playerFaction === sp.id ? "active" : ""}`}
-                  onClick={() => setSpecies(sp.id)}
-                >
-                  <div className="species-header">
-                    <b>{sp.name}</b>
-                    <small>
-                      <i>{sp.scientific}</i>
-                    </small>
-                  </div>
-                  <div className="species-tags">
-                    <span>{sp.biome}</span>
-                    <span>{sp.style}</span>
-                    <span className="complexity">{sp.complexity}</span>
-                  </div>
-                  <p>{sp.desc}</p>
-                  <div className="species-stats">
-                    <small>PRO: {sp.strength}</small>
-                    <small>RIESGO: {sp.risk}</small>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
 
           <div className="difficulty-picker" aria-label="Dificultad">
             <small>DIFICULTAD · PODÉS CAMBIARLA DURANTE LA PARTIDA</small>
