@@ -1740,18 +1740,19 @@ function updateEconomy(world: WorldState) {
       "La red madura; ahora debe controlar territorio y depredadores",
     );
   }
+  const targetBiomass = 52 + ((world.era || 1) - 1) * 45;
   if (
     world.seasonPhase === 3 &&
-    world.colonyBiomass >= 52 &&
+    world.colonyBiomass >= targetBiomass &&
     world.fungusHealth >= 0.52 &&
     world.nest.hygiene >= 0.5
   )
     endMatch(
       world,
       "victory",
-      "La colonia llega al invierno como un organismo completo",
+      `La colonia completa la Era ${world.era || 1} como un organismo supremo`,
     );
-  if (world.rivalBiomass >= 58)
+  if (world.rivalBiomass >= 58 + ((world.era || 1) - 1) * 20)
     endMatch(world, "defeat", "La colonia rival dominó la red de recursos");
   if (world.fungusHealth <= 0.01 && world.colonyBiomass === 0)
     endMatch(world, "defeat", "El cultivo colapsó por falta de sustrato");
@@ -1766,9 +1767,10 @@ function updateEconomy(world: WorldState) {
 function updateCampaign(world: WorldState) {
   if (world.status !== "playing") return;
 
+  const harvestTarget = 30 + ((world.era || 1) - 1) * 35;
   if (world.seasonPhase === 1) {
     if (
-      world.metrics.totalBiomassHarvested >= 30 &&
+      world.metrics.totalBiomassHarvested >= harvestTarget &&
       world.fungusHealth > 0.4 &&
       world.metrics.visitedUnderground &&
       world.metrics.priorityChanged &&

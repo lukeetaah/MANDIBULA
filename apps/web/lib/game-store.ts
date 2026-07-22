@@ -274,6 +274,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     world.colonyLevel = nextLevel;
     world.era = nextEra;
     world.seasonPhase = 1;
+    world.metrics.totalBiomassHarvested = 0;
+    world.metrics.visitedUnderground = false;
+    world.metrics.priorityChanged = false;
+    world.metrics.minorThreatResolved = false;
+    world.metrics.routesEstablished = false;
     const bonusCount = 10;
     for (let i = 0; i < bonusCount; i += 1) {
       world.agents.push({
