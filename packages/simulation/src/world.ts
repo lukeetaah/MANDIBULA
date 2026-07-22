@@ -280,16 +280,18 @@ export function createWorld(
   }
 
   world.resources = [
-    { id: id(world), kind: "leaf", position: { x: 15, z: 7 }, amount: 42 },
+    { id: id(world), kind: "leaf", position: { x: 9, z: 6 }, amount: 45 },
+    { id: id(world), kind: "leaf", position: { x: -9, z: -8 }, amount: 35 },
+    { id: id(world), kind: "leaf", position: { x: 16, z: 12 }, amount: 42 },
     { id: id(world), kind: "seed", position: { x: -18, z: 12 }, amount: 30 },
-    { id: id(world), kind: "nectar", position: { x: 24, z: 25 }, amount: 40 },
+    { id: id(world), kind: "nectar", position: { x: 20, z: 22 }, amount: 40 },
     {
       id: id(world),
       kind: "deadwood",
-      position: { x: -34, z: -25 },
+      position: { x: -28, z: -20 },
       amount: 60,
     },
-    { id: id(world), kind: "leaf", position: { x: 28, z: -16 }, amount: 32 },
+    { id: id(world), kind: "leaf", position: { x: 25, z: -16 }, amount: 35 },
   ];
 
   const runner: Spider = {
@@ -1439,10 +1441,17 @@ function updateSpider(spider: Spider, world: WorldState) {
     spider.agitation = 0;
     spider.hunger = 0.72;
     world.metrics.spidersKilled += 1;
+    world.colonyBiomass += 16;
+    world.resources.push({
+      id: id(world),
+      kind: "leaf",
+      position: { ...spider.position },
+      amount: 40,
+    });
     event(
       world,
       "spider-killed",
-      "Murió una araña; los corredores ecológicos siguen abiertos",
+      "¡Cacería exitosa! +16 Biomasa recuperada y restos de presa disponibles para cosecha",
       spider.id,
     );
     return;
@@ -1659,19 +1668,55 @@ function updateEconomy(world: WorldState) {
     1,
   );
 
-  // Auto-preservación del cultivo
-  if (
-    world.fungusHealth < 0.25 &&
-    world.colonyPriority !== "forage" &&
-    world.tick % 600 === 0
-  ) {
-    world.colonyPriority = "forage";
-    event(
-      world,
-      "phase-changed",
-      "¡Estado crítico del hongo! Las autónomas cambian a recolección urgente.",
-    );
+  // Regeneración estacional de recursos para evitar mapas agotados
+  if (world.tick % 200 === 0) {
+    for (const patch of world.resources) {
+      if (patch.amount < 50) {
+        patch.amount = Math.min(50, patch.amount + 4);
+      }
+    }
+    const activePatches = world.resources.filter((p) => p.amount > 0).length;
+    if (activePatches < 5) {
+      const angle = (world.tick / 200) * 1.618;
+      const dist = 10 + ((world.tick / 200) % 16);
+      world.resources.push({
+        id: id(world),
+        kind: "leaf",
+        position: { x: Math.cos(angle) * dist, z: Math.sin(angle) * dist },
+        amount: 35,
+      });
+      event(
+        world,
+        "phase-changed",
+        "Brote vegetal patagónico: nuevos brotes de hojarasca disponibles para recolección.",
+      );
+    }
   }
+
+  // Auto-preservación y conversión de emergencia del cultivo
+  if (world.fungusHealth < 0.18) {
+    if (world.colonyBiomass > 0) {
+      world.colonyBiomass -= 1;
+      world.fungusHealth = Math.min(1, world.fungusHealth + 0.06);
+      if (world.tick % 200 === 0) {
+        event(
+          world,
+          "phase-changed",
+          "Conversión de emergencia: la colonia convirtió reserva de biomasa en sustrato para evitar el colapso.",
+        );
+      }
+    } else if (world.tick % 300 === 0) {
+      event(
+        world,
+        "phase-changed",
+        "¡SUSTRATO CRÍTICO! Sin reservas de biomasa. Mandá obreras a recolectar hojas inmediatamente.",
+      );
+    }
+    if (world.colonyPriority !== "forage" && world.tick % 400 === 0) {
+      world.colonyPriority = "forage";
+    }
+  }
+
   if (world.seasonPhase === 1 && world.colonyBiomass >= 18) {
     world.seasonPhase = 2;
     event(
@@ -1706,7 +1751,7 @@ function updateEconomy(world: WorldState) {
     );
   if (world.rivalBiomass >= 58)
     endMatch(world, "defeat", "La colonia rival dominó la red de recursos");
-  if (world.fungusHealth <= 0.05)
+  if (world.fungusHealth <= 0.01 && world.colonyBiomass === 0)
     endMatch(world, "defeat", "El cultivo colapsó por falta de sustrato");
   if (world.tick >= 12000 && world.seasonPhase < 4)
     endMatch(
